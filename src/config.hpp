@@ -6,6 +6,8 @@
 
 #include <string>
 #include <cstdint>
+#include <cstdlib>
+#include <unistd.h>
 
 namespace bybridge {
 namespace config {
@@ -22,12 +24,24 @@ constexpr int      SESSION_KEY_BYTES  = 16;     // 16 bytes = 32 hex chars
 constexpr int      MAX_RECENT_KEYS    = 5;      // Rolling window of valid keys
 constexpr int      QR_REFRESH_SECS    = 5;      // QR regeneration interval
 
-// ─── Paths (defaults, overridable via config file) ──────────────────
-inline const std::string DATA_DIR            = "/var/lib/bybridge";
-inline const std::string RECEIVED_FILES_DIR  = DATA_DIR + "/received_files";
-inline const std::string QR_IMAGE_PATH       = DATA_DIR + "/session_qr.png";
-inline const std::string QR_JSON_PATH        = DATA_DIR + "/session_qr.json";
-inline const std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
+// ─── Paths (runtime-resolved) ───────────────────────────────────────
+// Uses /var/lib/bybridge when root, ~/.local/share/bybridge otherwise
+inline std::string getDataDir() {
+    if (getuid() == 0) {
+        return "/var/lib/bybridge";
+    }
+    const char* home = std::getenv("HOME");
+    if (home) {
+        return std::string(home) + "/.local/share/bybridge";
+    }
+    return "/tmp/bybridge";
+}
+
+inline std::string DATA_DIR            = getDataDir();
+inline std::string RECEIVED_FILES_DIR  = DATA_DIR + "/received_files";
+inline std::string QR_IMAGE_PATH       = DATA_DIR + "/session_qr.png";
+inline std::string QR_JSON_PATH        = DATA_DIR + "/session_qr.json";
+inline std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
 inline const std::string CONFIG_FILE_PATH    = "/etc/bybridge/bybridge.conf";
 
 // ─── System Info Sources ────────────────────────────────────────────
@@ -53,3 +67,4 @@ inline const std::string DAEMON_VERSION = "2.0.0";
 
 } // namespace config
 } // namespace bybridge
+

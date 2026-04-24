@@ -19,7 +19,13 @@ find_path(NLOHMANN_JSON_INCLUDE nlohmann/json.hpp
     PATHS /usr/include /usr/local/include
 )
 if(NOT NLOHMANN_JSON_INCLUDE)
-    message(FATAL_ERROR "nlohmann/json.hpp not found. Install: sudo pacman -S nlohmann-json")
+    # Fallback to bundled third_party copy
+    if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann/json.hpp")
+        set(NLOHMANN_JSON_INCLUDE "${CMAKE_SOURCE_DIR}/third_party")
+        message(STATUS "Using bundled nlohmann/json from third_party/")
+    else()
+        message(FATAL_ERROR "nlohmann/json.hpp not found. Install: sudo pacman -S nlohmann-json")
+    endif()
 endif()
 
 # ─── Source Files ─────────────────────────────────────────────────────

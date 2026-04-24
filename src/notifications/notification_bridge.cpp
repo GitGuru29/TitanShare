@@ -47,26 +47,26 @@ void NotificationBridge::monitorLoop() {
         return;
     }
 
-    // Become a monitor for Notify method calls
-    // We use eavesdropping to intercept without claiming the service name
-    const char* rule = "type='method_call',interface='org.freedesktop.Notifications',member='Notify',eavesdrop='true'";
-
-    dbus_bus_add_match(conn, rule, &err);
+    // Monitor for notification signals - use multiple approaches for compatibility
+    // Method 1: Listen for signals from the notification daemon
+    const char* signalRule = "type='signal',interface='org.freedesktop.Notifications'";
+    dbus_bus_add_match(conn, signalRule, &err);
     dbus_connection_flush(conn);
 
     if (dbus_error_is_set(&err)) {
-        Logger::warn("NOTIF", "D-Bus match rule failed: " + std::string(err.message) +
-                     " (eavesdrop may require bus policy change)");
+        Logger::warn("NOTIF", "D-Bus signal match failed: " + std::string(err.message));
         dbus_error_free(&err);
+    }
 
-        // Try without eavesdrop (less reliable)
-        const char* fallbackRule = "type='method_call',interface='org.freedesktop.Notifications',member='Notify'";
-        dbus_bus_add_match(conn, fallbackRule, &err);
-        if (dbus_error_is_set(&err)) {
-            Logger::error("NOTIF", "D-Bus fallback match also failed: " + std::string(err.message));
-            dbus_error_free(&err);
-            return;
-        }
+    // Method 2: Also try method_call without eavesdrop
+    dbus_error_init(&err);
+    const char* methodRule = "type='method_call',interface='org.freedesktop.Notifications',member='Notify'";
+    dbus_bus_add_match(conn, methodRule, &err);
+    dbus_connection_flush(conn);
+
+    if (dbus_error_is_set(&err)) {
+        Logger::warn("NOTIF", "D-Bus method match note: " + std::string(err.message));
+        dbus_error_free(&err);
     }
 
     Logger::info("NOTIF", "Listening for D-Bus notifications...");
