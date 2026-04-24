@@ -72,3 +72,32 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(FILES systemd/titanshare.service DESTINATION lib/systemd/system)
 install(FILES config/titanshare.conf DESTINATION /etc/titanshare)
+
+# ─── GUI Target ───────────────────────────────────────────────────────
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+find_package(Qt6 COMPONENTS Core Gui Qml Quick OPTIONAL_COMPONENTS)
+
+if(Qt6_FOUND)
+    message(STATUS "Qt6 found. Building titanshare-gui.")
+    
+    set(GUI_SOURCES
+        src_gui/main.cpp
+        src_gui/titanshare_gui.qrc
+    )
+    
+    add_executable(titanshare-gui ${GUI_SOURCES})
+    
+    target_link_libraries(titanshare-gui PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+    )
+    
+    install(TARGETS titanshare-gui DESTINATION bin)
+else()
+    message(WARNING "Qt6 not found. The GUI target (titanshare-gui) will not be built.")
+endif()
