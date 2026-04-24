@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <algorithm>
 
-namespace bybridge {
+namespace titanshare {
 
 std::string FileReceiver::getReceivedDir() {
     return config::RECEIVED_FILES_DIR;
@@ -28,4 +28,4 @@ std::string FileReceiver::sanitizeFilename(const std::string& name) {
     return result;
 }
 
-} // namespace bybridge
+} // namespace titanshare

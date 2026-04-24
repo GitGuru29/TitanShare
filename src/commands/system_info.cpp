@@ -9,7 +9,7 @@
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
 
-namespace bybridge {
+namespace titanshare {
 
 SystemInfo::SystemInfo() {
     // Initialize CPU baseline
@@ -255,4 +255,4 @@ nlohmann::json SystemInfo::collect() {
     return data;
 }
 
-} // namespace bybridge
+} // namespace titanshare

@@ -9,7 +9,7 @@
 #include <linux/input-event-codes.h>
 #include <time.h>
 
-namespace bybridge {
+namespace titanshare {
 
 VirtualInput::VirtualInput() {
     std::memset(m_asciiMap, 0, sizeof(m_asciiMap));
@@ -284,4 +284,4 @@ void VirtualInput::initAsciiMap() {
     m_asciiMap['~']  = {KEY_GRAVE, true};
 }
 
-} // namespace bybridge
+} // namespace titanshare

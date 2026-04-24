@@ -1,12 +1,12 @@
 #pragma once
 /*
- * ByBridge Daemon — Network Utilities
+ * TitanShare Daemon — Network Utilities
  * Local IP detection and socket helpers.
  */
 
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class Network {
 public:
@@ -14,4 +14,4 @@ public:
     static std::string getLocalIp();
 };
 
-} // namespace bybridge
+} // namespace titanshare

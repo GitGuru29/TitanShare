@@ -1,18 +1,18 @@
 [Unit]
-Description=ByBridge Daemon — Android Device Bridge
-Documentation=https://github.com/yourusername/bybridge-daemon
+Description=TitanShare Daemon — Android Device Bridge
+Documentation=https://github.com/yourusername/titanshare-daemon
 After=network.target graphical-session.target
 Wants=network.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/bybridge-daemon
+ExecStart=/usr/local/bin/titanshare-daemon
 Restart=on-failure
 RestartSec=3
 NotifyAccess=main
 
 # Run as current user (not root by default)
-# Override with: systemctl edit bybridge
+# Override with: systemctl edit titanshare
 # User=msfvenom
 
 # Environment for PulseAudio / PipeWire access
@@ -25,13 +25,13 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 SupplementaryGroups=input
 
 # Data directory
-StateDirectory=bybridge
-RuntimeDirectory=bybridge
+StateDirectory=titanshare
+RuntimeDirectory=titanshare
 
 # Security hardening
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/bybridge
+ReadWritePaths=/var/lib/titanshare
 NoNewPrivileges=false
 PrivateTmp=true
 

@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ByBridge Daemon — TCP Server
+ * TitanShare Daemon — TCP Server
  * Epoll-based asynchronous TCP server supporting multiple clients.
  */
 
@@ -9,7 +9,7 @@
 #include <memory>
 #include <atomic>
 
-namespace bybridge {
+namespace titanshare {
 
 class ClientSession;
 class SessionManager;
@@ -44,4 +44,4 @@ private:
     std::unordered_map<int, std::unique_ptr<ClientSession>> m_clients;
 };
 
-} // namespace bybridge
+} // namespace titanshare

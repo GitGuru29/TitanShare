@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 
-namespace bybridge {
+namespace titanshare {
 
 bool QrGenerator::generate(const std::string& jsonData, const std::string& outputPath) {
     // Generate QR code
@@ -84,4 +84,4 @@ bool QrGenerator::generate(const std::string& jsonData, const std::string& outpu
     return true;
 }
 
-} // namespace bybridge
+} // namespace titanshare

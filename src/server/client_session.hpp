@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ByBridge Daemon — Client Session
+ * TitanShare Daemon — Client Session
  * Per-client TCP state machine: AUTH → HEADER → DATA
  * Mirrors the protocol from the original Node.js daemon.js
  */
@@ -9,7 +9,7 @@
 #include <vector>
 #include <memory>
 
-namespace bybridge {
+namespace titanshare {
 
 class SessionManager;
 class CommandDispatcher;
@@ -56,4 +56,4 @@ private:
     std::shared_ptr<CommandDispatcher> m_dispatcher;
 };
 
-} // namespace bybridge
+} // namespace titanshare

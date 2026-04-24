@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ByBridge Daemon — Notification Bridge
+ * TitanShare Daemon — Notification Bridge
  * Monitors D-Bus for desktop notifications and forwards them to
  * connected Android clients. Also receives notifications from Android
  * and displays them on the Linux desktop.
@@ -11,7 +11,7 @@
 #include <atomic>
 #include <thread>
 
-namespace bybridge {
+namespace titanshare {
 
 struct Notification {
     std::string appName;
@@ -38,7 +38,7 @@ public:
 
     // Show a notification on the Linux desktop (received from Android)
     static void showDesktopNotification(const std::string& title, const std::string& body,
-                                        const std::string& appName = "ByBridge");
+                                        const std::string& appName = "TitanShare");
 
 private:
     void monitorLoop();
@@ -48,4 +48,4 @@ private:
     std::thread m_monitorThread;
 };
 
-} // namespace bybridge
+} // namespace titanshare

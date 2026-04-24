@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-namespace bybridge {
+namespace titanshare {
 
 ExecResult Process::exec(const std::string& command) {
     ExecResult result{-1, ""};
@@ -43,4 +43,4 @@ void Process::execDetached(const std::string& command) {
     }).detach();
 }
 
-} // namespace bybridge
+} // namespace titanshare

@@ -1,13 +1,13 @@
 #pragma once
 /*
- * ByBridge Daemon — File Receiver
+ * TitanShare Daemon — File Receiver
  * Handles FILE_START/FILE_END protocol for receiving files from Android.
  * (This module is used by ClientSession, kept as a separate header for clarity)
  */
 
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class FileReceiver {
 public:
@@ -21,4 +21,4 @@ public:
     static std::string sanitizeFilename(const std::string& name);
 };
 
-} // namespace bybridge
+} // namespace titanshare

@@ -2,7 +2,7 @@
 #include "utils/process.hpp"
 #include "utils/logger.hpp"
 
-namespace bybridge {
+namespace titanshare {
 
 std::string VolumeCommands::execute(const std::string& cmd) {
     std::string sysCmd;
@@ -23,4 +23,4 @@ std::string VolumeCommands::execute(const std::string& cmd) {
     return result.success() ? "CMD_OK\n" : "CMD_FAIL\n";
 }
 
-} // namespace bybridge
+} // namespace titanshare

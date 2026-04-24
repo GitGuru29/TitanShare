@@ -5,7 +5,7 @@
 #include <ctime>
 #include <mutex>
 
-namespace bybridge {
+namespace titanshare {
 
 LogLevel Logger::s_minLevel = LogLevel::INFO;
 static std::mutex s_logMutex;
@@ -54,4 +54,4 @@ void Logger::info(const std::string& tag, const std::string& msg)  { log(LogLeve
 void Logger::warn(const std::string& tag, const std::string& msg)  { log(LogLevel::WARN, tag, msg); }
 void Logger::error(const std::string& tag, const std::string& msg) { log(LogLevel::ERROR, tag, msg); }
 
-} // namespace bybridge
+} // namespace titanshare

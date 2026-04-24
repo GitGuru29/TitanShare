@@ -5,7 +5,7 @@
 #include <dbus/dbus.h>
 #include <cstring>
 
-namespace bybridge {
+namespace titanshare {
 
 NotificationBridge::NotificationBridge() = default;
 
@@ -142,4 +142,4 @@ void NotificationBridge::showDesktopNotification(const std::string& title,
     Process::execDetached(cmd);
 }
 
-} // namespace bybridge
+} // namespace titanshare

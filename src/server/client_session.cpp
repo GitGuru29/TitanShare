@@ -11,7 +11,7 @@
 #include <cstring>
 #include <filesystem>
 
-namespace bybridge {
+namespace titanshare {
 
 ClientSession::ClientSession(int fd, const std::string& remoteIp,
                              std::shared_ptr<SessionManager> sessionMgr,
@@ -186,4 +186,4 @@ void ClientSession::handleFileData() {
     }
 }
 
-} // namespace bybridge
+} // namespace titanshare

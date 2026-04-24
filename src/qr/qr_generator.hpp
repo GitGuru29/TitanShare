@@ -1,12 +1,12 @@
 #pragma once
 /*
- * ByBridge Daemon — QR Code Generator
+ * TitanShare Daemon — QR Code Generator
  * Generates QR code PNG images using libqrencode + libpng.
  */
 
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class QrGenerator {
 public:
@@ -15,4 +15,4 @@ public:
     static bool generate(const std::string& jsonData, const std::string& outputPath);
 };
 
-} // namespace bybridge
+} // namespace titanshare

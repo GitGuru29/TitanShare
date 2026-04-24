@@ -13,7 +13,7 @@
 #include <fcntl.h>
 #include <cstring>
 
-namespace bybridge {
+namespace titanshare {
 
 TcpServer::TcpServer(uint16_t port,
                      std::shared_ptr<SessionManager> sessionMgr,
@@ -178,4 +178,4 @@ void TcpServer::removeClient(int clientFd) {
     close(clientFd);
 }
 
-} // namespace bybridge
+} // namespace titanshare

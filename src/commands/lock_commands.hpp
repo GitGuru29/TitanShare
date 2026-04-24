@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class LockCommands {
 public:
@@ -13,4 +13,4 @@ private:
     static std::string unlockSession();
 };
 
-} // namespace bybridge
+} // namespace titanshare

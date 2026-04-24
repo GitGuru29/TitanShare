@@ -1,6 +1,6 @@
-# ByBridge Daemon
+# TitanShare Daemon
 
-Native C++ daemon for Arch Linux that bridges your Android phone with your Linux desktop. A complete rewrite of the original Node.js ByBridge project.
+Native C++ daemon for Arch Linux that bridges your Android phone with your Linux desktop. A complete rewrite of the original Node.js TitanShare project.
 
 ## Features
 
@@ -34,8 +34,8 @@ sudo usermod -aG input $USER
 ## Build
 
 ```bash
-git clone https://github.com/yourusername/bybridge-daemon.git
-cd bybridge-daemon
+git clone https://github.com/yourusername/titanshare-daemon.git
+cd titanshare-daemon
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -46,27 +46,27 @@ make -j$(nproc)
 ```bash
 # Install binary + service
 sudo make install
-sudo cp ../systemd/bybridge.service /etc/systemd/system/
+sudo cp ../systemd/titanshare.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
 # Start
-sudo systemctl enable --now bybridge
+sudo systemctl enable --now titanshare
 
 # Check logs
-journalctl -u bybridge -f
+journalctl -u titanshare -f
 ```
 
 ## Manual Run (Development)
 
 ```bash
-./build/bybridge-daemon
+./build/titanshare-daemon
 ```
 
-The QR code is saved to `/var/lib/bybridge/session_qr.png` — scan it with the ByBridge Android app.
+The QR code is saved to `/var/lib/titanshare/session_qr.png` — scan it with the TitanShare Android app.
 
 ## Protocol
 
-Uses a TCP-based protocol on port 9999, compatible with the ByBridge Android app:
+Uses a TCP-based protocol on port 9999, compatible with the TitanShare Android app:
 
 1. **Auth**: Client sends session key → `AUTH_OK` / `AUTH_FAIL`
 2. **Commands**: `CMD:<command>\n` → `CMD_OK\n` / `CMD_FAIL\n` / JSON response
@@ -93,7 +93,7 @@ Uses a TCP-based protocol on port 9999, compatible with the ByBridge Android app
 ## Project Structure
 
 ```
-bybridge-daemon/
+titanshare-daemon/
 ├── CMakeLists.txt
 ├── src/
 │   ├── main.cpp              # Entry point, signal handling
@@ -107,9 +107,9 @@ bybridge-daemon/
 │   ├── qr/                   # QR code PNG generator
 │   └── utils/                # Logger, network, process exec
 ├── systemd/
-│   └── bybridge.service      # Systemd unit file
+│   └── titanshare.service      # Systemd unit file
 └── config/
-    └── bybridge.conf         # Runtime configuration
+    └── titanshare.conf         # Runtime configuration
 ```
 
 ## License

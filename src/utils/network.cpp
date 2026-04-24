@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <cstring>
 
-namespace bybridge {
+namespace titanshare {
 
 std::string Network::getLocalIp() {
     struct ifaddrs* ifAddrList = nullptr;
@@ -36,4 +36,4 @@ std::string Network::getLocalIp() {
     return result;
 }
 
-} // namespace bybridge
+} // namespace titanshare

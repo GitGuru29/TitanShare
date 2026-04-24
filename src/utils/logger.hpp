@@ -1,13 +1,13 @@
 #pragma once
 /*
- * ByBridge Daemon — Logger
+ * TitanShare Daemon — Logger
  * Structured logging with severity levels and timestamps.
  */
 
 #include <string>
 #include <iostream>
 
-namespace bybridge {
+namespace titanshare {
 
 enum class LogLevel { DEBUG, INFO, WARN, ERROR };
 
@@ -27,4 +27,4 @@ private:
     static std::string timestamp();
 };
 
-} // namespace bybridge
+} // namespace titanshare

@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ByBridge Daemon — Session Manager
+ * TitanShare Daemon — Session Manager
  * Generates cryptographic session keys, manages QR pairing,
  * and validates incoming authentication attempts.
  */
@@ -9,7 +9,7 @@
 #include <vector>
 #include <mutex>
 
-namespace bybridge {
+namespace titanshare {
 
 class SessionManager {
 public:
@@ -37,4 +37,4 @@ private:
     std::vector<std::string> m_recentKeys;
 };
 
-} // namespace bybridge
+} // namespace titanshare

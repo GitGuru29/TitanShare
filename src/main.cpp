@@ -1,10 +1,10 @@
 /*
- * ByBridge Daemon v2.0 — Main Entry Point
+ * TitanShare Daemon v2.0 — Main Entry Point
  *
  * Native C++ daemon for Arch Linux.
  * Replaces the original Node.js daemon.js + input_driver.c
  *
- * Protocol-compatible with the ByBridge Android app.
+ * Protocol-compatible with the TitanShare Android app.
  */
 
 #include "config.hpp"
@@ -32,22 +32,22 @@
 
 namespace {
     std::atomic<bool> g_running{true};
-    bybridge::TcpServer* g_server = nullptr;
+    titanshare::TcpServer* g_server = nullptr;
 
     void signalHandler(int sig) {
-        bybridge::Logger::info("MAIN", "Received signal " + std::to_string(sig) + ", shutting down...");
+        titanshare::Logger::info("MAIN", "Received signal " + std::to_string(sig) + ", shutting down...");
         g_running = false;
         if (g_server) g_server->stop();
     }
 }
 
 int main(int argc, char* argv[]) {
-    using namespace bybridge;
+    using namespace titanshare;
 
     // ─── Initialize Logger ────────────────────────────────────
     Logger::init(LogLevel::INFO);
     Logger::info("MAIN", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    Logger::info("MAIN", " ByBridge Daemon v" + config::DAEMON_VERSION);
+    Logger::info("MAIN", " TitanShare Daemon v" + config::DAEMON_VERSION);
     Logger::info("MAIN", " Native C++ • Arch Linux");
     Logger::info("MAIN", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 

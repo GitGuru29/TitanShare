@@ -1,7 +1,7 @@
 #pragma once
 /*
- * ByBridge Daemon — Configuration Constants
- * All compile-time defaults. Can be overridden via bybridge.conf at runtime.
+ * TitanShare Daemon — Configuration Constants
+ * All compile-time defaults. Can be overridden via titanshare.conf at runtime.
  */
 
 #include <string>
@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <unistd.h>
 
-namespace bybridge {
+namespace titanshare {
 namespace config {
 
 // ─── Network ────────────────────────────────────────────────────────
@@ -25,16 +25,16 @@ constexpr int      MAX_RECENT_KEYS    = 5;      // Rolling window of valid keys
 constexpr int      QR_REFRESH_SECS    = 5;      // QR regeneration interval
 
 // ─── Paths (runtime-resolved) ───────────────────────────────────────
-// Uses /var/lib/bybridge when root, ~/.local/share/bybridge otherwise
+// Uses /var/lib/titanshare when root, ~/.local/share/titanshare otherwise
 inline std::string getDataDir() {
     if (getuid() == 0) {
-        return "/var/lib/bybridge";
+        return "/var/lib/titanshare";
     }
     const char* home = std::getenv("HOME");
     if (home) {
-        return std::string(home) + "/.local/share/bybridge";
+        return std::string(home) + "/.local/share/titanshare";
     }
-    return "/tmp/bybridge";
+    return "/tmp/titanshare";
 }
 
 inline std::string DATA_DIR            = getDataDir();
@@ -42,7 +42,7 @@ inline std::string RECEIVED_FILES_DIR  = DATA_DIR + "/received_files";
 inline std::string QR_IMAGE_PATH       = DATA_DIR + "/session_qr.png";
 inline std::string QR_JSON_PATH        = DATA_DIR + "/session_qr.json";
 inline std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
-inline const std::string CONFIG_FILE_PATH    = "/etc/bybridge/bybridge.conf";
+inline const std::string CONFIG_FILE_PATH    = "/etc/titanshare/titanshare.conf";
 
 // ─── System Info Sources ────────────────────────────────────────────
 inline const std::string PROC_STAT           = "/proc/stat";
@@ -54,17 +54,17 @@ inline const std::string POWER_SUPPLY_BASE   = "/sys/class/power_supply";
 
 // ─── Input Device ───────────────────────────────────────────────────
 inline const std::string UINPUT_PATH         = "/dev/uinput";
-inline const std::string MOUSE_DEVICE_NAME   = "ByBridge Mouse";
-inline const std::string KEYBOARD_DEVICE_NAME = "ByBridge Keyboard";
+inline const std::string MOUSE_DEVICE_NAME   = "TitanShare Mouse";
+inline const std::string KEYBOARD_DEVICE_NAME = "TitanShare Keyboard";
 
 // ─── Buffer Sizes ───────────────────────────────────────────────────
 constexpr size_t   READ_BUFFER_SIZE   = 65536;  // 64KB per-client read buffer
 constexpr size_t   FILE_WRITE_CHUNK   = 16384;  // 16KB file write chunks
 
 // ─── Daemon Info ────────────────────────────────────────────────────
-inline const std::string DAEMON_NAME    = "bybridge-daemon";
+inline const std::string DAEMON_NAME    = "titanshare-daemon";
 inline const std::string DAEMON_VERSION = "2.0.0";
 
 } // namespace config
-} // namespace bybridge
+} // namespace titanshare
 

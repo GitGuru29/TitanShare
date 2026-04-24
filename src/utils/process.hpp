@@ -1,13 +1,13 @@
 #pragma once
 /*
- * ByBridge Daemon — Process Utilities
+ * TitanShare Daemon — Process Utilities
  * Execute shell commands and capture output.
  */
 
 #include <string>
 #include <functional>
 
-namespace bybridge {
+namespace titanshare {
 
 struct ExecResult {
     int exitCode;
@@ -28,4 +28,4 @@ public:
     static void execDetached(const std::string& command);
 };
 
-} // namespace bybridge
+} // namespace titanshare

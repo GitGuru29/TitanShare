@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class VolumeCommands {
 public:
@@ -9,4 +9,4 @@ public:
     static std::string execute(const std::string& cmd);
 };
 
-} // namespace bybridge
+} // namespace titanshare

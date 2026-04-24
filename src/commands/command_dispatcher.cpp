@@ -12,7 +12,7 @@
 #include <sys/socket.h>
 #include <cstring>
 
-namespace bybridge {
+namespace titanshare {
 
 using json = nlohmann::json;
 
@@ -176,4 +176,4 @@ std::string CommandDispatcher::handleMirrorCommand(const std::string& cmd, int /
     return "CMD_FAIL\n";
 }
 
-} // namespace bybridge
+} // namespace titanshare

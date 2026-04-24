@@ -1,13 +1,13 @@
 #pragma once
 /*
- * ByBridge Daemon — Virtual Input Device
+ * TitanShare Daemon — Virtual Input Device
  * Creates uinput mouse + keyboard devices.
  * Direct C++ port of the original input_driver.c
  */
 
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class VirtualInput {
 public:
@@ -48,4 +48,4 @@ private:
     int createKeyboard();
 };
 
-} // namespace bybridge
+} // namespace titanshare

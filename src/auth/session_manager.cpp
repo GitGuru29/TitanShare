@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
-namespace bybridge {
+namespace titanshare {
 
 using json = nlohmann::json;
 
@@ -115,4 +115,4 @@ bool SessionManager::loadPersistedSession() {
     return false;
 }
 
-} // namespace bybridge
+} // namespace titanshare

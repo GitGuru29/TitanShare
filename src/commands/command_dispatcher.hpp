@@ -1,13 +1,13 @@
 #pragma once
 /*
- * ByBridge Daemon — Command Dispatcher
+ * TitanShare Daemon — Command Dispatcher
  * Routes CMD:xxx strings to the appropriate handler module.
  */
 
 #include <string>
 #include <memory>
 
-namespace bybridge {
+namespace titanshare {
 
 class VirtualInput;
 class SystemInfo;
@@ -36,4 +36,4 @@ private:
     std::unique_ptr<SystemInfo> m_sysInfo;
 };
 
-} // namespace bybridge
+} // namespace titanshare

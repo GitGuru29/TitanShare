@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(bybridge-daemon VERSION 2.0.0 LANGUAGES CXX C)
+project(titanshare-daemon VERSION 2.0.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -70,5 +70,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 # ─── Install ──────────────────────────────────────────────────────────
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-install(FILES systemd/bybridge.service DESTINATION lib/systemd/system)
-install(FILES config/bybridge.conf DESTINATION /etc/bybridge)
+install(FILES systemd/titanshare.service DESTINATION lib/systemd/system)
+install(FILES config/titanshare.conf DESTINATION /etc/titanshare)

@@ -6,7 +6,7 @@
 #include <vector>
 #include <unistd.h>
 
-namespace bybridge {
+namespace titanshare {
 
 std::string LockCommands::execute(const std::string& cmd) {
     if (cmd == "lock") {
@@ -102,4 +102,4 @@ std::string LockCommands::unlockSession() {
     return "CMD_OK\n";
 }
 
-} // namespace bybridge
+} // namespace titanshare

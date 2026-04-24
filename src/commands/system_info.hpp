@@ -1,6 +1,6 @@
 #pragma once
 /*
- * ByBridge Daemon — System Info Collector
+ * TitanShare Daemon — System Info Collector
  * Reads CPU usage, RAM, temperature, storage, battery from procfs/sysfs.
  * No external tools required — pure Linux kernel interfaces.
  */
@@ -8,7 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-namespace bybridge {
+namespace titanshare {
 
 class SystemInfo {
 public:
@@ -52,4 +52,4 @@ private:
     CpuTimes readCpuTimes();
 };
 
-} // namespace bybridge
+} // namespace titanshare
