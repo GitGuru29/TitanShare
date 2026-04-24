@@ -1,7 +1,7 @@
 #pragma once
 /*
  * TitanShare Daemon — Session Manager
- * Generates cryptographic session keys, manages QR pairing,
+ * Generates pairing PINs, manages LAN discovery auth,
  * and validates incoming authentication attempts.
  */
 
@@ -15,26 +15,27 @@ class SessionManager {
 public:
     SessionManager();
 
-    // Generate a new session key (or reuse persisted one)
-    void generateSession(bool preserveKey = false);
+    // Generate a new 6-digit PIN (or reuse persisted one)
+    void generateSession(bool preservePin = false);
 
-    // Validate an incoming session key
-    bool validateKey(const std::string& key) const;
+    // Validate an incoming PIN from Android
+    bool validateKey(const std::string& pin) const;
 
     // Get current session info
-    std::string currentKey() const;
+    std::string currentKey() const;   ///< Returns current PIN string
     std::string currentIp() const;
-    std::string toJson() const;
+    std::string toJson() const;       ///< {"ip","port","pin","host"}
 
 private:
-    std::string generateRandomHex(int bytes);
+    std::string generatePin();         ///< Random PAIRING_PIN_DIGITS decimal string
     void persistSession();
     bool loadPersistedSession();
 
     mutable std::mutex m_mutex;
-    std::string m_currentKey;
+    std::string m_currentPin;
     std::string m_currentIp;
-    std::vector<std::string> m_recentKeys;
+    std::string m_hostname;
+    std::vector<std::string> m_recentPins;
 };
 
 } // namespace titanshare

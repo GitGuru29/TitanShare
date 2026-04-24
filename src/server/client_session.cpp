@@ -72,19 +72,27 @@ void ClientSession::processBuffer() {
 }
 
 void ClientSession::handleAuth(const std::string& line) {
-    std::string key = line;
-    // Trim whitespace
-    while (!key.empty() && (key.back() == ' ' || key.back() == '\t')) key.pop_back();
-    while (!key.empty() && (key.front() == ' ' || key.front() == '\t')) key.erase(key.begin());
+    // Android sends: AUTH:<6-digit-pin>\n
+    // We accept the PIN line directly (with or without "AUTH:" prefix)
+    std::string pin = line;
 
-    if (m_sessionMgr->validateKey(key)) {
-        m_sessionKey = key;
+    // Strip optional "AUTH:" prefix for forward-compat
+    if (pin.size() > 5 && pin.substr(0, 5) == "AUTH:") {
+        pin = pin.substr(5);
+    }
+
+    // Trim whitespace
+    while (!pin.empty() && (pin.back() == ' ' || pin.back() == '\t' || pin.back() == '\r')) pin.pop_back();
+    while (!pin.empty() && (pin.front() == ' ' || pin.front() == '\t')) pin.erase(pin.begin());
+
+    if (m_sessionMgr->validateKey(pin)) {
+        m_sessionKey = pin;
         sendResponse("AUTH_OK\n");
         m_stage = SessionStage::HEADER;
-        Logger::info("AUTH", "✅ Client authenticated: " + m_remoteIp);
+        Logger::info("AUTH", "✅ Device paired via PIN: " + m_remoteIp);
     } else {
         sendResponse("AUTH_FAIL\n");
-        Logger::warn("AUTH", "❌ Auth failed from: " + m_remoteIp);
+        Logger::warn("AUTH", "❌ Wrong PIN from: " + m_remoteIp + " (got: " + pin + ")");
         // Connection will be closed by the server
     }
 }

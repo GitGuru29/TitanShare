@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file alias="Main.qml">qml/Main.qml</file>
+        <file alias="components/PairingView.qml">qml/components/PairingView.qml</file>
+    </qresource>
+</RCC>

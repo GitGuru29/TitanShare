@@ -2,9 +2,8 @@
  * TitanShare Daemon v2.0 — Main Entry Point
  *
  * Native C++ daemon for Arch Linux.
- * Replaces the original Node.js daemon.js + input_driver.c
- *
- * Protocol-compatible with the TitanShare Android app.
+ * Uses mDNS/Avahi to advertise on LAN — Android app auto-discovers.
+ * Pairing is confirmed with a 6-digit PIN displayed in the GUI.
  */
 
 #include "config.hpp"
@@ -13,7 +12,7 @@
 #include "server/tcp_server.hpp"
 #include "auth/session_manager.hpp"
 #include "commands/command_dispatcher.hpp"
-#include "qr/qr_generator.hpp"
+#include "discovery/mdns_advertiser.hpp"
 #include "notifications/notification_bridge.hpp"
 
 #include <csignal>
@@ -48,13 +47,13 @@ int main(int argc, char* argv[]) {
     Logger::init(LogLevel::INFO);
     Logger::info("MAIN", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     Logger::info("MAIN", " TitanShare Daemon v" + config::DAEMON_VERSION);
-    Logger::info("MAIN", " Native C++ • Arch Linux");
+    Logger::info("MAIN", " Native C++ • Arch Linux • LAN Discovery");
     Logger::info("MAIN", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // ─── Signal Handling ──────────────────────────────────────
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
-    signal(SIGPIPE, SIG_IGN); // Ignore broken pipe
+    signal(SIGPIPE, SIG_IGN);
 
     // ─── Create Data Directories ──────────────────────────────
     try {
@@ -62,29 +61,35 @@ int main(int argc, char* argv[]) {
         std::filesystem::create_directories(config::RECEIVED_FILES_DIR);
     } catch (const std::exception& e) {
         Logger::error("MAIN", "Failed to create data dirs: " + std::string(e.what()));
-        Logger::info("MAIN", "Trying HOME-based fallback...");
     }
 
-    // ─── Initialize Session Manager ───────────────────────────
+    // ─── Initialize Session Manager (generates PIN) ───────────
     auto sessionMgr = std::make_shared<SessionManager>();
-    sessionMgr->generateSession(true);
+    sessionMgr->generateSession(true);   // reuse persisted PIN if fresh start
 
-    // ─── Generate Initial QR Code ─────────────────────────────
-    QrGenerator::generate(sessionMgr->toJson(), config::QR_IMAGE_PATH);
-    Logger::info("MAIN", "📱 QR Code: " + config::QR_IMAGE_PATH);
+    std::string localIp = Network::getLocalIp();
+    Logger::info("MAIN", "🌐 Local IP  : " + localIp);
+    Logger::info("MAIN", "🔌 TCP Port  : " + std::to_string(config::TCP_PORT));
+    Logger::info("MAIN", "🔑 Pairing PIN: " + sessionMgr->currentKey());
 
-    // ─── QR Refresh Timer (background thread) ─────────────────
-    std::thread qrThread([&sessionMgr]() {
+    // ─── mDNS Advertiser ──────────────────────────────────────
+    MdnsAdvertiser mdns;
+    mdns.start(sessionMgr->currentKey(), config::TCP_PORT);
+
+    // ─── PIN Refresh Timer (background thread) ────────────────
+    std::thread pinRefreshThread([&sessionMgr, &mdns]() {
         while (g_running) {
             std::this_thread::sleep_for(
-                std::chrono::seconds(config::QR_REFRESH_SECS));
+                std::chrono::seconds(config::PAIRING_PIN_SECS));
             if (!g_running) break;
 
-            sessionMgr->generateSession(true);
-            QrGenerator::generate(sessionMgr->toJson(), config::QR_IMAGE_PATH);
+            sessionMgr->generateSession(false);   // fresh PIN
+            mdns.updatePin(sessionMgr->currentKey());
+
+            Logger::info("MAIN", "🔄 PIN refreshed: " + sessionMgr->currentKey());
         }
     });
-    qrThread.detach();
+    pinRefreshThread.detach();
 
     // ─── Initialize Command Dispatcher ────────────────────────
     auto dispatcher = std::make_shared<CommandDispatcher>();
@@ -94,14 +99,9 @@ int main(int argc, char* argv[]) {
     NotificationBridge notifBridge;
     notifBridge.setCallback([](const Notification& n) {
         Logger::info("NOTIF", "🔔 " + n.appName + ": " + n.summary);
-        // TODO: Forward to connected Android clients
     });
     notifBridge.startMonitoring();
 
-    // ─── Print Status ─────────────────────────────────────────
-    std::string localIp = Network::getLocalIp();
-    Logger::info("MAIN", "🌐 Local IP: " + localIp);
-    Logger::info("MAIN", "🔌 TCP Port: " + std::to_string(config::TCP_PORT));
     Logger::info("MAIN", "📂 Files: " + config::RECEIVED_FILES_DIR);
     Logger::info("MAIN", "🎯 Mirror Port: " + std::to_string(config::MIRROR_PORT));
 
@@ -115,11 +115,12 @@ int main(int argc, char* argv[]) {
     TcpServer server(config::TCP_PORT, sessionMgr, dispatcher);
     g_server = &server;
 
-    Logger::info("MAIN", "🚀 Daemon is running. Waiting for connections...");
+    Logger::info("MAIN", "🚀 Daemon running — waiting for Android to connect on LAN...");
     server.run(); // Blocking event loop
 
     // ─── Cleanup ──────────────────────────────────────────────
     Logger::info("MAIN", "Shutting down...");
+    mdns.stop();
     notifBridge.stopMonitoring();
     g_server = nullptr;
 

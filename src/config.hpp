@@ -19,10 +19,13 @@ constexpr uint16_t WS_PORT            = 7001;   // WebSocket bridge port
 constexpr int      MAX_CLIENTS        = 64;     // Max simultaneous TCP clients
 constexpr int      BACKLOG            = 16;     // TCP listen backlog
 
-// ─── Session / Auth ─────────────────────────────────────────────────
-constexpr int      SESSION_KEY_BYTES  = 16;     // 16 bytes = 32 hex chars
-constexpr int      MAX_RECENT_KEYS    = 5;      // Rolling window of valid keys
-constexpr int      QR_REFRESH_SECS    = 5;      // QR regeneration interval
+// ─── mDNS / Discovery ───────────────────────────────────────────────
+inline const std::string MDNS_SERVICE_TYPE = "_titanshare._tcp";
+
+// ─── Pairing PIN ────────────────────────────────────────────────────
+constexpr int      PAIRING_PIN_SECS   = 300;    // PIN refresh interval (5 min)
+constexpr int      PAIRING_PIN_DIGITS = 6;      // PIN length shown on screen
+constexpr int      MAX_RECENT_PINS    = 3;      // Rolling window of valid PINs
 
 // ─── Paths (runtime-resolved) ───────────────────────────────────────
 // Uses /var/lib/titanshare when root, ~/.local/share/titanshare otherwise
@@ -39,10 +42,11 @@ inline std::string getDataDir() {
 
 inline std::string DATA_DIR            = getDataDir();
 inline std::string RECEIVED_FILES_DIR  = DATA_DIR + "/received_files";
-inline std::string QR_IMAGE_PATH       = DATA_DIR + "/session_qr.png";
-inline std::string QR_JSON_PATH        = DATA_DIR + "/session_qr.json";
 inline std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
 inline const std::string CONFIG_FILE_PATH    = "/etc/titanshare/titanshare.conf";
+
+// IPC — daemon writes this; GUI QFileSystemWatcher reads it
+inline const std::string PIN_IPC_PATH        = "/tmp/titanshare-pin.json";
 
 // ─── System Info Sources ────────────────────────────────────────────
 inline const std::string PROC_STAT           = "/proc/stat";
@@ -67,4 +71,3 @@ inline const std::string DAEMON_VERSION = "2.0.0";
 
 } // namespace config
 } // namespace titanshare
-
