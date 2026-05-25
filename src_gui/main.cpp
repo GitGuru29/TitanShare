@@ -11,6 +11,24 @@
 #include <QTimer>
 #include <unistd.h>
 
+class AppModel : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString pinCode READ pinCode NOTIFY pinCodeChanged)
+    Q_PROPERTY(QString deviceName READ deviceName NOTIFY deviceNameChanged)
+public:
+    QString m_pinCode = "------";
+    QString m_deviceName = "Linux PC";
+    
+    QString pinCode() const { return m_pinCode; }
+    void setPinCode(const QString& p) { if(m_pinCode != p) { m_pinCode = p; emit pinCodeChanged(); } }
+    
+    QString deviceName() const { return m_deviceName; }
+    void setDeviceName(const QString& n) { if(m_deviceName != n) { m_deviceName = n; emit deviceNameChanged(); } }
+signals:
+    void pinCodeChanged();
+    void deviceNameChanged();
+};
+
 // ─── IPC: read the PIN JSON written by the daemon ────────────────────────────
 static const QString PIN_IPC_PATH = "/tmp/titanshare-pin.json";
 
@@ -40,12 +58,8 @@ int main(int argc, char *argv[]) {
 
     QQmlApplicationEngine engine;
 
-    // ── Inject initial values ────────────────────────────────────────
-    QString host = localHostname();
-    QString pin  = readPin(host);
-
-    engine.rootContext()->setContextProperty("pinCode",    pin);
-    engine.rootContext()->setContextProperty("deviceName", host);
+    AppModel *appModel = new AppModel();
+    engine.rootContext()->setContextProperty("AppModel", appModel);
 
     // ── Watch for daemon PIN updates ─────────────────────────────────
     QFileSystemWatcher watcher;
@@ -59,9 +73,11 @@ int main(int argc, char *argv[]) {
         QString h;
         QString p = readPin(h);
         if (h.isEmpty()) h = localHostname();
-        engine.rootContext()->setContextProperty("pinCode",    p);
-        engine.rootContext()->setContextProperty("deviceName", h);
+        appModel->setDeviceName(h);
+        appModel->setPinCode(p.isEmpty() || p == "------" ? "------" : p);
     };
+
+    refreshPin();
 
     QObject::connect(&watcher, &QFileSystemWatcher::fileChanged,
                      &app, [&](const QString&) {
@@ -85,3 +101,5 @@ int main(int argc, char *argv[]) {
     engine.load(url);
     return app.exec();
 }
+
+#include "main.moc"

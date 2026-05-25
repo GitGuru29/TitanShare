@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
+#include <netdb.h>
 
 namespace titanshare {
 
@@ -37,7 +38,7 @@ int TcpServer::setNonBlocking(int fd) {
 
 void TcpServer::run() {
     // Create socket
-    m_serverFd = socket(AF_INET, SOCK_STREAM, 0);
+    m_serverFd = socket(AF_INET6, SOCK_STREAM, 0);
     if (m_serverFd < 0) {
         Logger::error("TCP", "socket() failed: " + std::string(strerror(errno)));
         return;
@@ -46,13 +47,16 @@ void TcpServer::run() {
     // Allow address reuse
     int opt = 1;
     setsockopt(m_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    // Ensure dual-stack is enabled (accept both IPv4 and IPv6)
+    int no = 0;
+    setsockopt(m_serverFd, IPPROTO_IPV6, IPV6_V6ONLY, &no, sizeof(no));
     setNonBlocking(m_serverFd);
 
     // Bind
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(m_port);
+    struct sockaddr_in6 addr{};
+    addr.sin6_family = AF_INET6;
+    addr.sin6_addr = in6addr_any;
+    addr.sin6_port = htons(m_port);
 
     if (bind(m_serverFd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
         Logger::error("TCP", "bind() failed on port " + std::to_string(m_port) + ": " + strerror(errno));
@@ -112,7 +116,7 @@ void TcpServer::stop() {
 }
 
 void TcpServer::acceptConnection() {
-    struct sockaddr_in clientAddr{};
+    struct sockaddr_storage clientAddr{};
     socklen_t addrLen = sizeof(clientAddr);
 
     int clientFd = accept(m_serverFd, reinterpret_cast<struct sockaddr*>(&clientAddr), &addrLen);
@@ -136,13 +140,16 @@ void TcpServer::acceptConnection() {
     ev.data.fd = clientFd;
     epoll_ctl(m_epollFd, EPOLL_CTL_ADD, clientFd, &ev);
 
-    char ipStr[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &clientAddr.sin_addr, ipStr, sizeof(ipStr));
+    char hostStr[NI_MAXHOST];
+    if (getnameinfo(reinterpret_cast<struct sockaddr*>(&clientAddr), addrLen,
+                    hostStr, sizeof(hostStr), nullptr, 0, NI_NUMERICHOST) != 0) {
+        strcpy(hostStr, "unknown");
+    }
 
     m_clients[clientFd] = std::make_unique<ClientSession>(
-        clientFd, std::string(ipStr), m_sessionMgr, m_dispatcher);
+        clientFd, std::string(hostStr), m_sessionMgr, m_dispatcher);
 
-    Logger::info("TCP", "🔗 Client connected: " + std::string(ipStr) +
+    Logger::info("TCP", "🔗 Client connected: " + std::string(hostStr) +
                  " (fd=" + std::to_string(clientFd) + ")");
 }
 

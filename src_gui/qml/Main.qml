@@ -1,128 +1,120 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
-import QtQuick.Effects
 import "components"
 
 ApplicationWindow {
     id: window
-    width: 560
-    height: 560
+    width: 480
+    height: 620
+    minimumWidth: 480
+    minimumHeight: 620
     visible: true
     title: "TitanShare"
-
-    // Frameless, transparent — glass effect is all in QML
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
 
-    // ─── Background wallpaper blur simulation ──────────────────────────
-    //     (deep gradient since we can't blur the actual desktop on all compositors)
+    // ── Root container ────────────────────────────────────────────────────
     Rectangle {
-        id: bgGradient
+        id: root
         anchors.fill: parent
-        anchors.margins: 40
-        radius: 24
+        radius: 20
+        clip: true
+
+        // Rich deep-navy gradient background
         gradient: Gradient {
             orientation: Gradient.Vertical
-            GradientStop { position: 0.0; color: Qt.rgba(0.04, 0.06, 0.14, 0.96) }
-            GradientStop { position: 1.0; color: Qt.rgba(0.02, 0.04, 0.10, 0.98) }
+            GradientStop { position: 0.0; color: "#0D1728" }
+            GradientStop { position: 0.5; color: "#0A1220" }
+            GradientStop { position: 1.0; color: "#060C18" }
         }
-        border.color: Qt.rgba(1, 1, 1, 0.10)
-        border.width: 1
-    }
 
-    // ─── Ambient glow orbs ─────────────────────────────────────────────
-    Rectangle {
-        anchors.centerIn: bgGradient
-        anchors.horizontalCenterOffset: -80
-        anchors.verticalCenterOffset: -60
-        width: 260; height: 260; radius: 130
-        color: Qt.rgba(0.04, 0.36, 0.88, 0.07)
-        visible: true
-        z: -1
-    }
-    Rectangle {
-        anchors.centerIn: bgGradient
-        anchors.horizontalCenterOffset: 90
-        anchors.verticalCenterOffset: 80
-        width: 200; height: 200; radius: 100
-        color: Qt.rgba(0.55, 0.18, 0.95, 0.05)
-        visible: true
-        z: -1
-    }
-
-    // ─── Window dragging ───────────────────────────────────────────────
-    MouseArea {
-        id: dragArea
-        anchors.fill: bgGradient
-        property point startPos: Qt.point(0, 0)
-        onPressed: (mouse) => { startPos = Qt.point(mouse.x, mouse.y) }
-        onPositionChanged: (mouse) => {
-            let delta = Qt.point(mouse.x - startPos.x, mouse.y - startPos.y)
-            window.x += delta.x
-            window.y += delta.y
+        // Subtle top edge highlight (glass rim)
+        Rectangle {
+            z: 10
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width - 60
+            height: 1
+            color: "#33FFFFFF"
+            radius: 1
         }
-    }
 
-    // ─── Traffic light controls ────────────────────────────────────────
-    Item {
-        id: trafficLights
-        anchors.top: bgGradient.top
-        anchors.left: bgGradient.left
-        anchors.margins: 18
-        width: 54; height: 14
-        z: 10
+        // ── Window border ─────────────────────────────────────────────────
+        Rectangle {
+            anchors.fill: parent
+            radius: parent.radius
+            color: "transparent"
+            border.color: "#1AFFFFFF"
+            border.width: 1
+            z: 20
+        }
 
-        property bool isHovered: trafficHover.containsMouse
-        MouseArea { id: trafficHover; anchors.fill: parent; anchors.margins: -10; hoverEnabled: true }
+        // ── Ambient glow blobs ────────────────────────────────────────────
+        Rectangle {
+            x: -40; y: 40
+            width: 280; height: 280; radius: 140
+            color: "#120A84FF"
+            antialiasing: true
+        }
+        Rectangle {
+            x: parent.width - 160; y: parent.height - 200
+            width: 220; height: 220; radius: 110
+            color: "#0DBF5AF2"
+            antialiasing: true
+        }
 
-        Row {
-            spacing: 8
-            Rectangle {
-                width: 14; height: 14; radius: 7
-                color: trafficHover.pressed ? "#bf4c45" : "#FF5F56"
-                border.color: Qt.rgba(0,0,0,0.1); border.width: 1
-                Text { anchors.centerIn: parent; text: "✕"; color: Qt.rgba(0,0,0,0.6)
-                       font.pixelSize: 9; font.bold: true; visible: trafficLights.isHovered }
-                MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
-            }
-            Rectangle {
-                width: 14; height: 14; radius: 7
-                color: trafficHover.pressed ? "#bf8e22" : "#FFBD2E"
-                border.color: Qt.rgba(0,0,0,0.1); border.width: 1
-                Text { anchors.centerIn: parent; text: "─"; color: Qt.rgba(0,0,0,0.6)
-                       font.pixelSize: 10; font.bold: true; visible: trafficLights.isHovered }
-                MouseArea { anchors.fill: parent; onClicked: window.showMinimized() }
-            }
-            Rectangle {
-                width: 14; height: 14; radius: 7; color: "#27C93F"
-                border.color: Qt.rgba(0,0,0,0.1); border.width: 1
-                Text { anchors.centerIn: parent; text: "⤢"; color: Qt.rgba(0,0,0,0.6)
-                       font.pixelSize: 9; visible: trafficLights.isHovered }
+        // ── Drag area (behind everything) ─────────────────────────────────
+        MouseArea {
+            anchors.fill: parent
+            property point startPos
+            onPressed:           startPos = Qt.point(mouseX, mouseY)
+            onPositionChanged:   {
+                window.x += mouseX - startPos.x
+                window.y += mouseY - startPos.y
             }
         }
-    }
 
-    // ─── Main Pairing Panel ────────────────────────────────────────────
-    Item {
-        anchors.fill: bgGradient
-        anchors.topMargin: 44
+        // ── Traffic lights ────────────────────────────────────────────────
+        Item {
+            x: 20; y: 20
+            width: 54; height: 16
+            z: 50
 
+            Rectangle {
+                id: btnClose
+                x: 0; y: 1; width: 13; height: 13; radius: 7
+                color: "#FF5F56"
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: Qt.quit()
+                }
+            }
+            Rectangle {
+                id: btnMin
+                x: 21; y: 1; width: 13; height: 13; radius: 7
+                color: "#FFBD2E"
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: window.showMinimized()
+                }
+            }
+            Rectangle {
+                x: 42; y: 1; width: 13; height: 13; radius: 7
+                color: "#27C93F"
+            }
+        }
+
+        // ── Content ───────────────────────────────────────────────────────
         PairingView {
-            anchors.centerIn: parent
-            width: parent.width - 48
-            height: parent.height - 16
+            anchors.top: parent.top
+            anchors.topMargin: 52
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 0
         }
-    }
-
-    // ─── Drop shadow ───────────────────────────────────────────────────
-    MultiEffect {
-        source: bgGradient
-        anchors.fill: bgGradient
-        shadowEnabled: true
-        shadowColor: Qt.rgba(0, 0, 0, 0.55)
-        shadowHorizontalOffset: 0
-        shadowVerticalOffset: 16
-        shadowBlur: 1.0
     }
 }

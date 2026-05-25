@@ -1,247 +1,298 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Effects
 
-Rectangle {
+Item {
     id: root
-    color: "transparent"
 
-    // ─── Glass Card ────────────────────────────────────────────────────
-    Rectangle {
-        id: glassCard
-        anchors.fill: parent
-        radius: 22
+    // ── Properties injected from C++ context ──────────────────────────────
+    property string pinCode:    typeof AppModel !== "undefined" ? AppModel.pinCode    : "------"
+    property string deviceName: typeof AppModel !== "undefined" ? AppModel.deviceName : "Linux PC"
 
-        // Deep navy glass base
-        color: Qt.rgba(0.04, 0.07, 0.14, 0.82)
-        border.color: Qt.rgba(1, 1, 1, 0.12)
-        border.width: 1
-
-        // Subtle top-edge highlight (like real glass)
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 1
-            radius: parent.radius
-            color: Qt.rgba(1, 1, 1, 0.22)
-        }
-    }
-
-    // ─── Content ───────────────────────────────────────────────────────
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 32
+    // ── Top: Discover animation + branding ────────────────────────────────
+    Column {
+        id: topSection
+        anchors.top: parent.top
+        anchors.topMargin: 12
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 0
 
-        // ── Wi-Fi Discovery Icon ──────────────────────────────────────
+        // ── Pulsing radar icon ─────────────────────────────────────────────
         Item {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 4
-            width: 52
-            height: 52
+            width: 100; height: 100
+            anchors.horizontalCenter: parent.horizontalCenter
 
-            // Pulsing outer rings (AirDrop-like)
+            // Rings — 3 expanding pulses
             Repeater {
                 model: 3
                 delegate: Rectangle {
-                    property int ringIdx: index
+                    property int idx: index
                     anchors.centerIn: parent
-                    width: 28 + ringIdx * 18
+                    width: 40 + idx * 24
                     height: width
                     radius: width / 2
                     color: "transparent"
-                    border.color: Qt.rgba(0.04, 0.52, 1.0, 0.35 - ringIdx * 0.08)
+                    border.color: "#0A84FF"
                     border.width: 1.5
-
                     opacity: 0
+
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
-                        PauseAnimation { duration: ringIdx * 350 }
-                        NumberAnimation { to: 1.0; duration: 500; easing.type: Easing.OutQuad }
-                        NumberAnimation { to: 0.0; duration: 900; easing.type: Easing.InQuad }
-                        PauseAnimation { duration: 200 }
+                        PauseAnimation  { duration: idx * 500 }
+                        NumberAnimation { to: 0.7; duration: 400; easing.type: Easing.OutCubic }
+                        NumberAnimation { to: 0.0; duration: 900; easing.type: Easing.InCubic }
+                        PauseAnimation  { duration: 200 }
+                    }
+
+                    SequentialAnimation on scale {
+                        loops: Animation.Infinite
+                        PauseAnimation  { duration: idx * 500 }
+                        NumberAnimation { from: 0.85; to: 1.4; duration: 1300; easing.type: Easing.OutCubic }
                     }
                 }
             }
 
-            // Centre icon (phone + WiFi symbol via text)
-            Text {
+            // Centre icon circle
+            Rectangle {
                 anchors.centerIn: parent
-                text: "📱"
-                font.pixelSize: 24
+                width: 52; height: 52; radius: 26
+                color: "#1A0A84FF"
+                border.color: "#660A84FF"
+                border.width: 1.5
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "⌁"
+                    font.pixelSize: 26
+                    color: "#0A84FF"
+                }
             }
         }
 
-        Item { Layout.preferredHeight: 18 }
+        Item { width: 1; height: 16 }
 
-        // ── Title ──────────────────────────────────────────────────────
+        // ── App name ───────────────────────────────────────────────────────
         Text {
-            Layout.alignment: Qt.AlignHCenter
+            anchors.horizontalCenter: parent.horizontalCenter
             text: "TitanShare"
-            font.pixelSize: 20
-            font.weight: Font.Bold
-            font.letterSpacing: 0.5
-            color: "#ffffff"
+            color: "#FFFFFF"
+            font.pixelSize: 26
+            font.weight: 700
+            font.letterSpacing: -0.3
         }
 
-        Item { Layout.preferredHeight: 5 }
+        Item { width: 1; height: 6 }
 
-        // ── Subtitle ───────────────────────────────────────────────────
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: "Looking for devices nearby…"
-            font.pixelSize: 12
-            color: Qt.rgba(1, 1, 1, 0.5)
-        }
-
-        Item { Layout.preferredHeight: 28 }
-
-        // ── Divider ────────────────────────────────────────────────────
+        // ── Status badge ───────────────────────────────────────────────────
         Rectangle {
-            Layout.fillWidth: true
-            height: 1
-            color: Qt.rgba(1, 1, 1, 0.08)
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: statusRow.implicitWidth + 20
+            height: 24; radius: 12
+            color: "#1430D158"
+            border.color: "#3330D158"
+            border.width: 1
+
+            Row {
+                id: statusRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                Rectangle {
+                    width: 7; height: 7; radius: 4
+                    color: "#30D158"
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    SequentialAnimation on opacity {
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.3; duration: 900 }
+                        NumberAnimation { to: 1.0; duration: 900 }
+                    }
+                }
+
+                Text {
+                    text: "Discoverable on LAN"
+                    color: "#30D158"
+                    font.pixelSize: 12
+                    font.weight: 500
+                }
+            }
         }
+    }
 
-        Item { Layout.preferredHeight: 26 }
+    // ── Divider ───────────────────────────────────────────────────────────
+    Rectangle {
+        anchors.top: topSection.bottom
+        anchors.topMargin: 28
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: parent.width - 80
+        height: 1
+        color: "#14FFFFFF"
+    }
 
-        // ── Device Name ────────────────────────────────────────────────
+    // ── Middle: device + PIN ──────────────────────────────────────────────
+    Column {
+        id: midSection
+        anchors.top: topSection.bottom
+        anchors.topMargin: 46
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: parent.width - 64
+        spacing: 0
+
+        // ── "This device" section ──────────────────────────────────────────
         Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: "This device"
-            font.pixelSize: 11
-            color: Qt.rgba(1, 1, 1, 0.38)
-            font.letterSpacing: 0.8
-        }
-
-        Item { Layout.preferredHeight: 6 }
-
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: typeof deviceName !== "undefined" ? deviceName : "Linux PC"
-            font.pixelSize: 15
-            font.weight: Font.SemiBold
-            color: "#ffffff"
-        }
-
-        Item { Layout.preferredHeight: 24 }
-
-        // ── PIN Area ───────────────────────────────────────────────────
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: "PAIRING CODE"
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "THIS DEVICE"
+            color: "#4DFFFFFF"
             font.pixelSize: 10
-            font.letterSpacing: 2.5
-            color: Qt.rgba(0.04, 0.52, 1.0, 0.85)
-            font.weight: Font.Medium
+            font.weight: 600
+            font.letterSpacing: 2.0
         }
 
-        Item { Layout.preferredHeight: 14 }
+        Item { width: 1; height: 8 }
 
-        // PIN digits — displayed as spaced individual blocks
+        // Hostname card
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            height: 48; radius: 12
+            color: "#0DFFFFFF"
+            border.color: "#14FFFFFF"
+            border.width: 1
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 10
+
+                Text {
+                    text: "💻"
+                    font.pixelSize: 18
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    text: root.deviceName
+                    color: "#FFFFFF"
+                    font.pixelSize: 16
+                    font.weight: 600
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        Item { width: 1; height: 28 }
+
+        // ── PIN Section ────────────────────────────────────────────────────
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "PAIRING CODE"
+            color: "#800A84FF"
+            font.pixelSize: 10
+            font.weight: 600
+            font.letterSpacing: 2.5
+        }
+
+        Item { width: 1; height: 14 }
+
+        // Instructions
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Enter this code in the TitanShare app on your phone"
+            color: "#66FFFFFF"
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            width: parent.width
+        }
+
+        Item { width: 1; height: 20 }
+
+        // ── PIN digit row ──────────────────────────────────────────────────
         Row {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 8
+            id: pinRow
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 10
+
+            // Derive safe 6-char string from pinCode
+            property string digits: {
+                var p = root.pinCode
+                if (!p || p.length === 0) p = "------"
+                while (p.length < 6) p += "-"
+                return p.substring(0, 6)
+            }
 
             Repeater {
-                id: pinDigits
-                // Split pinCode into individual characters; pad/trim to 6
-                property string safePin: {
-                    var p = (typeof pinCode !== "undefined") ? pinCode : "------"
-                    while (p.length < 6) p = p + "-"
-                    return p.substring(0, 6)
-                }
                 model: 6
 
                 delegate: Rectangle {
-                    width: 40
-                    height: 52
-                    radius: 10
-                    color: Qt.rgba(0.04, 0.52, 1.0, 0.12)
-                    border.color: Qt.rgba(0.04, 0.52, 1.0, 0.45)
+                    width: 52; height: 68; radius: 12
+                    color: "#1A0A84FF"
+                    border.color: "#990A84FF"
                     border.width: 1.5
 
-                    // Shimmer effect when pin updates
-                    SequentialAnimation on color {
-                        id: digitAnim
-                        running: false
-                        ColorAnimation { to: Qt.rgba(0.04, 0.52, 1.0, 0.28); duration: 150 }
-                        ColorAnimation { to: Qt.rgba(0.04, 0.52, 1.0, 0.12); duration: 400 }
+                    // Blue inner glow at top
+                    Rectangle {
+                        anchors.top: parent.top
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 32; height: 2; radius: 1
+                        color: "#660A84FF"
                     }
 
                     Text {
                         anchors.centerIn: parent
-                        text: pinDigits.safePin.charAt(index)
-                        font.pixelSize: 24
-                        font.weight: Font.Bold
-                        font.family: "SF Mono, Fira Code, Consolas, monospace"
-                        color: "#ffffff"
+                        text: pinRow.digits.charAt(index)
+                        color: "#FFFFFF"
+                        font.pixelSize: 30
+                        font.weight: 700
+                        font.family: "SF Mono, Fira Code, JetBrains Mono, Consolas, monospace"
                     }
                 }
             }
         }
 
-        Item { Layout.preferredHeight: 20 }
+        Item { width: 1; height: 10 }
 
-        // ── Footer instruction ─────────────────────────────────────────
+        // Refresh hint
         Text {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.fillWidth: true
-            text: "Open TitanShare on your Android device.\nIt will find this computer automatically."
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "↺  Auto-refreshes every 5 minutes"
+            color: "#33FFFFFF"
+            font.pixelSize: 11
+        }
+    }
+
+    // ── Bottom: animated waiting indicator ────────────────────────────────
+    Column {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 28
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 10
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Open TitanShare on your Android — it will find this PC automatically"
+            color: "#40FFFFFF"
+            font.pixelSize: 11
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
-            font.pixelSize: 11
-            color: Qt.rgba(1, 1, 1, 0.38)
-            lineHeight: 1.5
+            width: root.width - 80
         }
 
-        // ── Animated waiting dots ──────────────────────────────────────
-        Item { Layout.preferredHeight: 16 }
-
+        // Animated dots
         Row {
-            Layout.alignment: Qt.AlignHCenter
+            anchors.horizontalCenter: parent.horizontalCenter
             spacing: 8
 
             Repeater {
                 model: 3
                 delegate: Rectangle {
                     width: 6; height: 6; radius: 3
-                    color: Qt.rgba(0.04, 0.52, 1.0, 0.9)
+                    color: "#0A84FF"
                     opacity: 0.25
 
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
-                        PauseAnimation { duration: index * 280 }
-                        NumberAnimation { to: 1.0; duration: 380; easing.type: Easing.OutSine }
-                        NumberAnimation { to: 0.25; duration: 480; easing.type: Easing.InSine }
-                    }
-                }
-            }
-        }
-
-        Item { Layout.fillHeight: true }
-    }
-
-    // ─── Watch for PIN refresh (re-trigger shimmer) ────────────────────
-    property string _lastPin: ""
-    onVisibleChanged: _lastPin = ""
-
-    Timer {
-        interval: 500
-        running: true
-        repeat: true
-        onTriggered: {
-            var cur = (typeof pinCode !== "undefined") ? pinCode : ""
-            if (cur !== root._lastPin && cur !== "") {
-                root._lastPin = cur
-                // Flash all digit boxes
-                for (var i = 0; i < pinDigits.count; i++) {
-                    var item = pinDigits.itemAt(i)
-                    if (item) {
-                        var anim = item.children[0]  // digitAnim
-                        if (anim && typeof anim.start === "function") anim.start()
+                        PauseAnimation  { duration: index * 250 }
+                        NumberAnimation { to: 1.0;  duration: 350; easing.type: Easing.OutSine }
+                        NumberAnimation { to: 0.25; duration: 450; easing.type: Easing.InSine }
                     }
                 }
             }
