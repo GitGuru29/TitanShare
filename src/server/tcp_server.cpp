@@ -136,7 +136,7 @@ void TcpServer::acceptConnection() {
     setNonBlocking(clientFd);
 
     struct epoll_event ev{};
-    ev.events = EPOLLIN | EPOLLET;
+    ev.events = EPOLLIN;  // Level-triggered: safe for blocking disk writes inside handler
     ev.data.fd = clientFd;
     epoll_ctl(m_epollFd, EPOLL_CTL_ADD, clientFd, &ev);
 

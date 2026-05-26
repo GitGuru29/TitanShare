@@ -8,12 +8,16 @@
 #include <filesystem>
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
+#include <algorithm>
+#include <numeric>
 
 namespace titanshare {
 
 SystemInfo::SystemInfo() {
-    // Initialize CPU baseline
+    // Initialize aggregate CPU baseline
     m_prevCpu = readCpuTimes();
+    // Initialize per-core baselines
+    m_prevCoreCpu = readAllCoreTimes();
 }
 
 std::string SystemInfo::readSysFile(const std::string& path) {
@@ -62,6 +66,101 @@ double SystemInfo::getCpuUsage() {
 
     if (dTotal == 0) return 0.0;
     return (static_cast<double>(dWork) / static_cast<double>(dTotal)) * 100.0;
+}
+
+// Reads all "cpuN" lines from /proc/stat for per-core deltas
+std::vector<SystemInfo::CpuTimes> SystemInfo::readAllCoreTimes() {
+    std::vector<CpuTimes> cores;
+    std::ifstream file(config::PROC_STAT);
+    if (!file.is_open()) return cores;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        // Match lines like "cpu0 ...", "cpu1 ..." — skip the aggregate "cpu "
+        if (line.size() < 4 || line.substr(0, 3) != "cpu") break;
+        if (!std::isdigit(line[3])) continue; // skip aggregate "cpu "
+
+        std::istringstream iss(line);
+        std::string label;
+        iss >> label;
+
+        long long values[10] = {};
+        int count = 0;
+        while (count < 10 && iss >> values[count]) count++;
+
+        CpuTimes t;
+        t.work  = values[0] + values[1] + values[2] + values[5] + values[6] + values[7];
+        t.total = t.work + values[3] + values[4];
+        cores.push_back(t);
+    }
+    return cores;
+}
+
+std::vector<double> SystemInfo::getPerCoreCpuUsage() {
+    auto cur = readAllCoreTimes();
+    std::vector<double> usage;
+
+    // First call — no previous data yet for cores; init and return zeros
+    if (m_prevCoreCpu.size() != cur.size()) {
+        m_prevCoreCpu = cur;
+        usage.resize(cur.size(), 0.0);
+        return usage;
+    }
+
+    for (size_t i = 0; i < cur.size(); ++i) {
+        long long dWork  = cur[i].work  - m_prevCoreCpu[i].work;
+        long long dTotal = cur[i].total - m_prevCoreCpu[i].total;
+        if (dTotal <= 0) {
+            usage.push_back(0.0);
+        } else {
+            usage.push_back((static_cast<double>(dWork) / static_cast<double>(dTotal)) * 100.0);
+        }
+    }
+    m_prevCoreCpu = cur;
+    return usage;
+}
+
+// Average current CPU frequency across all online cores (in GHz)
+double SystemInfo::getCpuFreqGhz() {
+    namespace fs = std::filesystem;
+    double total = 0.0;
+    int    count = 0;
+    try {
+        for (auto& entry : fs::directory_iterator("/sys/devices/system/cpu")) {
+            std::string name = entry.path().filename().string();
+            // Match cpu0, cpu1, ... but not cpufreq, cpuidle etc.
+            if (name.size() < 4 || name.substr(0, 3) != "cpu" || !std::isdigit(name[3]))
+                continue;
+            std::string freqPath = entry.path().string() + "/cpufreq/scaling_cur_freq";
+            std::string val = readSysFile(freqPath);
+            if (!val.empty()) {
+                total += std::stod(val); // in kHz
+                count++;
+            }
+        }
+    } catch (...) {}
+    if (count == 0) return 0.0;
+    return (total / count) / 1e6; // kHz → GHz
+}
+
+int SystemInfo::getCpuCoreCount() {
+    namespace fs = std::filesystem;
+    int count = 0;
+    try {
+        for (auto& entry : fs::directory_iterator("/sys/devices/system/cpu")) {
+            std::string name = entry.path().filename().string();
+            if (name.size() >= 4 && name.substr(0, 3) == "cpu" && std::isdigit(name[3]))
+                count++;
+        }
+    } catch (...) {}
+    if (count == 0) {
+        // Fallback: count nproc via /proc/cpuinfo
+        std::ifstream f("/proc/cpuinfo");
+        std::string line;
+        while (std::getline(f, line))
+            if (line.substr(0, 9) == "processor") count++;
+    }
+    return count;
 }
 
 void SystemInfo::getMemoryInfo(double& usagePercent, long& usedMB, long& totalMB) {
@@ -214,13 +313,30 @@ nlohmann::json SystemInfo::collect() {
     // OS
     data["os_version"] = getOsVersion();
 
-    // CPU
+    // CPU — aggregate
     double cpuLoad = getCpuUsage();
     std::ostringstream cpuStr;
     cpuStr << std::fixed << std::setprecision(1) << cpuLoad;
     data["cpu_load"] = cpuStr.str();
 
-    // CPU Temperature (NEW)
+    // CPU — per-core usage array [0..100] per core
+    auto coreUsages = getPerCoreCpuUsage();
+    nlohmann::json coresArr = nlohmann::json::array();
+    for (double u : coreUsages) {
+        std::ostringstream s;
+        s << std::fixed << std::setprecision(1) << u;
+        coresArr.push_back(s.str());
+    }
+    data["cpu_cores_usage"] = coresArr;
+
+    // CPU — frequency and core count
+    double freqGhz = getCpuFreqGhz();
+    std::ostringstream freqStr;
+    freqStr << std::fixed << std::setprecision(2) << freqGhz;
+    data["cpu_freq_ghz"] = freqStr.str();
+    data["cpu_core_count"] = getCpuCoreCount();
+
+    // CPU Temperature
     double cpuTemp = getCpuTemperature();
     std::ostringstream tempStr;
     tempStr << std::fixed << std::setprecision(1) << cpuTemp;

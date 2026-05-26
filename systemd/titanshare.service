@@ -6,6 +6,8 @@ Wants=network.target
 
 [Service]
 Type=notify
+# Create received_files subdir if it doesn't exist (fallback for StateDirectory)
+ExecStartPre=/usr/bin/mkdir -p /var/lib/titanshare/received_files
 ExecStart=/usr/local/bin/titanshare-daemon
 Restart=on-failure
 RestartSec=3
@@ -24,8 +26,10 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Needs access to uinput for virtual input
 SupplementaryGroups=input
 
-# Data directory
+# Data directory — systemd auto-creates /var/lib/titanshare on start
+# Sub-directories are handled by tmpfiles.d/titanshare.conf and ExecStartPre
 StateDirectory=titanshare
+StateDirectoryMode=0755
 RuntimeDirectory=titanshare
 
 # Security hardening
@@ -36,4 +40,4 @@ NoNewPrivileges=false
 PrivateTmp=true
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=multi-user.target

@@ -7,6 +7,7 @@
 
 #include <nlohmann/json.hpp>
 #include <string>
+#include <vector>
 
 namespace titanshare {
 
@@ -20,6 +21,15 @@ public:
 private:
     // CPU usage (delta-based from /proc/stat)
     double getCpuUsage();
+
+    // Per-core usage — returns vector of [0..100] per logical core
+    std::vector<double> getPerCoreCpuUsage();
+
+    // CPU frequency in GHz (average across online cores)
+    double getCpuFreqGhz();
+
+    // Number of logical CPU cores
+    int getCpuCoreCount();
 
     // RAM from /proc/meminfo
     void getMemoryInfo(double& usagePercent, long& usedMB, long& totalMB);
@@ -43,13 +53,15 @@ private:
     // Helper: read a sysfs file
     std::string readSysFile(const std::string& path);
 
-    // CPU delta tracking
+    // CPU delta tracking — index 0 = aggregate "cpu", 1..N = "cpu0".."cpuN-1"
     struct CpuTimes {
-        long long work = 0;
+        long long work  = 0;
         long long total = 0;
     };
-    CpuTimes m_prevCpu;
+    CpuTimes              m_prevCpu;        // aggregate
+    std::vector<CpuTimes> m_prevCoreCpu;    // per-core
     CpuTimes readCpuTimes();
+    std::vector<CpuTimes> readAllCoreTimes();
 };
 
 } // namespace titanshare

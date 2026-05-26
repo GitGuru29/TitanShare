@@ -30,7 +30,8 @@ signals:
 };
 
 // ─── IPC: read the PIN JSON written by the daemon ────────────────────────────
-static const QString PIN_IPC_PATH = "/tmp/titanshare-pin.json";
+// Must match config::PIN_IPC_PATH in the daemon (/run/titanshare/ via RuntimeDirectory)
+static const QString PIN_IPC_PATH = "/run/titanshare/titanshare-pin.json";
 
 static QString readPin(QString& hostOut) {
     QFile f(PIN_IPC_PATH);

@@ -11,7 +11,32 @@ namespace titanshare {
 std::string LockCommands::execute(const std::string& cmd) {
     if (cmd == "lock") {
         Logger::info("LOCK", "🔒 Locking session");
-        auto result = Process::exec("loginctl lock-session");
+        
+        // Find the active session on seat0
+        auto listResult = Process::exec("/usr/bin/loginctl list-sessions --no-legend");
+        std::string sessionId;
+        std::string sessionUser;
+        if (listResult.success()) {
+            std::istringstream stream(listResult.output);
+            std::string line, s_id, s_uid, s_user, s_seat;
+            while (std::getline(stream, line)) {
+                std::istringstream ls(line);
+                if (ls >> s_id >> s_uid >> s_user >> s_seat) {
+                    if (s_seat == "seat0") { sessionId = s_id; sessionUser = s_user; break; }
+                }
+            }
+        }
+        
+        if (sessionId.empty()) {
+            Logger::error("LOCK", "❌ No active graphical session found to lock");
+            return "CMD_FAIL\n";
+        }
+
+        std::string lockCmd = (getuid() == 0)
+            ? "runuser -u " + sessionUser + " -- /usr/bin/loginctl lock-session " + sessionId
+            : "/usr/bin/loginctl lock-session " + sessionId;
+
+        auto result = Process::exec(lockCmd);
         return result.success() ? "CMD_OK\n" : "CMD_FAIL\n";
     }
     else if (cmd == "unlock") {

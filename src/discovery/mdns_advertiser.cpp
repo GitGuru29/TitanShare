@@ -48,11 +48,8 @@ void MdnsAdvertiser::start(const std::string& pin,
 void MdnsAdvertiser::updatePin(const std::string& newPin) {
     m_pin      = newPin;
     m_pinDirty = true;
-
-    // Wake the poll loop so it can re-register the TXT record
-    if (m_simplePoll) {
-        avahi_simple_poll_quit(m_simplePoll);
-    }
+    // Don't call avahi_simple_poll_quit() here — that kills the loop.
+    // The poll loop checks m_pinDirty every 1000ms tick.
 }
 
 void MdnsAdvertiser::stop() {
@@ -95,16 +92,22 @@ void MdnsAdvertiser::runLoop() {
     Logger::info("MDNS", "🔍 mDNS advertiser started (" +
                  m_hostname + " port=" + std::to_string(m_port) + ")");
 
-    // Run the poll loop — blocks here until avahi_simple_poll_quit() is called
+    // Run the poll loop — blocks here until stop() sets m_running=false
     while (m_running) {
         int ret = avahi_simple_poll_iterate(m_simplePoll, 1000 /*ms*/);
-        if (ret != 0) break;   // -1 = error, 1 = quit request
+        if (ret < 0) {
+            Logger::error("MDNS", "avahi_simple_poll_iterate error, restarting...");
+            break;  // real error — exit and let cleanup happen
+        }
+        // ret == 1 means quit was requested (from stop()), check m_running
+        if (ret == 1 && !m_running) break;
 
         // If pin changed between ticks, reset the group so createServices() reruns
         if (m_pinDirty && m_group) {
             m_pinDirty = false;
             avahi_entry_group_reset(m_group);
             createServices(m_client);
+            Logger::info("MDNS", "✅ mDNS TXT record updated with new PIN");
         }
     }
 

@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <algorithm>
 #include <cstring>
+#include <cerrno>
 #include <filesystem>
 
 namespace titanshare {
@@ -29,6 +30,29 @@ ClientSession::~ClientSession() {
     }
 }
 
+// ─── O(1) buffer helpers ─────────────────────────────────────────────────────
+
+void ClientSession::consumeBuffer(size_t n) {
+    m_bufferOffset += n;
+    // Compact when we've consumed more than 256 KB of dead space
+    // to avoid unbounded memory growth.
+    if (m_bufferOffset > 262144) {
+        compactBuffer();
+    }
+}
+
+void ClientSession::compactBuffer() {
+    if (m_bufferOffset == 0) return;
+    size_t remaining = m_buffer.size() - m_bufferOffset;
+    if (remaining > 0) {
+        std::memmove(m_buffer.data(), m_buffer.data() + m_bufferOffset, remaining);
+    }
+    m_buffer.resize(remaining);
+    m_bufferOffset = 0;
+}
+
+// ─── Data entry point ─────────────────────────────────────────────────────────
+
 void ClientSession::onData(const char* data, size_t len) {
     m_buffer.insert(m_buffer.end(), data, data + len);
     processBuffer();
@@ -38,52 +62,59 @@ void ClientSession::sendResponse(const std::string& response) {
     send(m_fd, response.c_str(), response.size(), MSG_NOSIGNAL);
 }
 
+// ─── State machine ────────────────────────────────────────────────────────────
+
 void ClientSession::processBuffer() {
-    while (!m_buffer.empty()) {
+    while (bufSize() > 0) {
         if (m_stage == SessionStage::AUTH) {
-            // Find newline
-            auto it = std::find(m_buffer.begin(), m_buffer.end(), '\n');
-            if (it == m_buffer.end()) break;
+            // Find newline in the readable portion
+            const char* start = bufData();
+            const char* nl = static_cast<const char*>(
+                std::memchr(start, '\n', bufSize()));
+            if (!nl) break;
 
-            std::string line(m_buffer.begin(), it);
-            m_buffer.erase(m_buffer.begin(), it + 1);
+            size_t lineLen = nl - start;
+            std::string line(start, lineLen);
+            consumeBuffer(lineLen + 1); // consume line + newline
 
-            // Trim \r if present
             if (!line.empty() && line.back() == '\r') line.pop_back();
-
             handleAuth(line);
         }
         else if (m_stage == SessionStage::HEADER) {
-            auto it = std::find(m_buffer.begin(), m_buffer.end(), '\n');
-            if (it == m_buffer.end()) break;
+            const char* start = bufData();
+            const char* nl = static_cast<const char*>(
+                std::memchr(start, '\n', bufSize()));
+            if (!nl) break;
 
-            std::string line(m_buffer.begin(), it);
-            m_buffer.erase(m_buffer.begin(), it + 1);
+            size_t lineLen = nl - start;
+            std::string line(start, lineLen);
+            consumeBuffer(lineLen + 1);
 
             if (!line.empty() && line.back() == '\r') line.pop_back();
-
             handleHeader(line);
         }
         else if (m_stage == SessionStage::DATA) {
             handleFileData();
-            break; // handleFileData manages its own buffer consumption
+            break; // handleFileData drains what it can; re-enter on next recv
         }
     }
 }
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
 void ClientSession::handleAuth(const std::string& line) {
-    // Android sends: AUTH:<6-digit-pin>\n
-    // We accept the PIN line directly (with or without "AUTH:" prefix)
     std::string pin = line;
 
-    // Strip optional "AUTH:" prefix for forward-compat
+    // Strip optional "AUTH:" prefix
     if (pin.size() > 5 && pin.substr(0, 5) == "AUTH:") {
         pin = pin.substr(5);
     }
 
     // Trim whitespace
-    while (!pin.empty() && (pin.back() == ' ' || pin.back() == '\t' || pin.back() == '\r')) pin.pop_back();
-    while (!pin.empty() && (pin.front() == ' ' || pin.front() == '\t')) pin.erase(pin.begin());
+    while (!pin.empty() && (pin.back() == ' ' || pin.back() == '\t' || pin.back() == '\r'))
+        pin.pop_back();
+    while (!pin.empty() && (pin.front() == ' ' || pin.front() == '\t'))
+        pin.erase(pin.begin());
 
     if (m_sessionMgr->validateKey(pin)) {
         m_sessionKey = pin;
@@ -93,55 +124,62 @@ void ClientSession::handleAuth(const std::string& line) {
     } else {
         sendResponse("AUTH_FAIL\n");
         Logger::warn("AUTH", "❌ Wrong PIN from: " + m_remoteIp + " (got: " + pin + ")");
-        // Connection will be closed by the server
     }
 }
 
+// ─── Header ───────────────────────────────────────────────────────────────────
+
 void ClientSession::handleHeader(const std::string& line) {
-    if (line.substr(0, 4) == "CMD:") {
+    if (line.size() >= 4 && line.substr(0, 4) == "CMD:") {
         std::string cmd = line.substr(4);
-        // Trim
         while (!cmd.empty() && cmd.front() == ' ') cmd.erase(cmd.begin());
 
         Logger::info("CMD", "Command: " + cmd + " from " + m_remoteIp);
 
-        // Dispatch to command handler
         std::string response = m_dispatcher->dispatch(cmd, m_fd);
         if (!response.empty()) {
             sendResponse(response);
         }
     }
-    else if (line.substr(0, 11) == "FILE_START:") {
+    else if (line.size() >= 11 && line.substr(0, 11) == "FILE_START:") {
         // Parse FILE_START:<filename>:<size>
-        auto firstColon = line.find(':', 11);
-        if (firstColon == std::string::npos) {
+        // filename itself may contain colons (e.g. timestamps), so find the LAST colon
+        // for size, everything before that is the filename.
+        auto lastColon = line.rfind(':');
+        if (lastColon == std::string::npos || lastColon <= 11) {
             sendResponse("CMD_FAIL\n");
             return;
         }
 
-        m_fileName = line.substr(11, firstColon - 11);
-        // Sanitize filename — replace path separators
+        m_fileName = line.substr(11, lastColon - 11);
         std::replace(m_fileName.begin(), m_fileName.end(), '/', '_');
         std::replace(m_fileName.begin(), m_fileName.end(), '\\', '_');
 
         try {
-            m_expectedBytes = std::stoull(line.substr(firstColon + 1));
+            m_expectedBytes = std::stoull(line.substr(lastColon + 1));
         } catch (...) {
             sendResponse("CMD_FAIL\n");
             return;
         }
 
-        // Ensure received_files directory exists
+        if (m_expectedBytes == 0) {
+            sendResponse("CMD_FAIL\n");
+            Logger::error("FILE", "Received FILE_START with size=0, rejecting");
+            return;
+        }
+
         std::filesystem::create_directories(config::RECEIVED_FILES_DIR);
 
         std::string filePath = config::RECEIVED_FILES_DIR + "/" + m_fileName;
         m_fileFd = open(filePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (m_fileFd < 0) {
-            Logger::error("FILE", "Failed to create file: " + filePath);
+            Logger::error("FILE", "Failed to create file: " + filePath +
+                          " (" + strerror(errno) + ")");
             sendResponse("CMD_FAIL\n");
             return;
         }
 
+        m_receivedBytes = 0;
         m_stage = SessionStage::DATA;
         sendResponse("READY_FOR_FILE\n");
         Logger::info("FILE", "📥 Receiving: " + m_fileName +
@@ -152,45 +190,55 @@ void ClientSession::handleHeader(const std::string& line) {
     }
 }
 
+// ─── File Data ────────────────────────────────────────────────────────────────
+
 void ClientSession::handleFileData() {
-    // Look for FILE_END\n sentinel in buffer
-    const std::string sentinel = "FILE_END\n";
+    if (bufSize() == 0 || m_fileFd < 0) return;
 
-    auto it = std::search(m_buffer.begin(), m_buffer.end(),
-                          sentinel.begin(), sentinel.end());
+    // How many bytes we still need from the stream
+    size_t remaining = m_expectedBytes - m_receivedBytes;
+    size_t toWrite   = std::min(bufSize(), remaining);
 
-    if (it != m_buffer.end()) {
-        // Write everything before the sentinel
-        size_t dataLen = std::distance(m_buffer.begin(), it);
-        if (dataLen > 0 && m_fileFd >= 0) {
-            write(m_fileFd, m_buffer.data(), dataLen);
-        }
-
-        // Close file
-        if (m_fileFd >= 0) {
+    if (toWrite > 0) {
+        // write() directly from the buffer read-head — no extra copy
+        ssize_t written = write(m_fileFd, bufData(), toWrite);
+        if (written < 0) {
+            Logger::error("FILE", "write() failed: " + std::string(strerror(errno)));
             close(m_fileFd);
             m_fileFd = -1;
+            sendResponse("CMD_FAIL\n");
+            m_stage = SessionStage::HEADER;
+            // Clear the whole buffer — stream is corrupt
+            m_buffer.clear();
+            m_bufferOffset = 0;
+            return;
         }
-
-        // Remove data + sentinel from buffer
-        m_buffer.erase(m_buffer.begin(), it + sentinel.size());
-
-        m_stage = SessionStage::HEADER;
-        sendResponse("FILE_OK\n");
-        Logger::info("FILE", "✅ File received: " + m_fileName);
+        m_receivedBytes += static_cast<size_t>(written);
+        consumeBuffer(static_cast<size_t>(written)); // O(1) advance
     }
-    else {
-        // Write all buffered data to file (keep it flowing)
-        if (!m_buffer.empty() && m_fileFd >= 0) {
-            // Keep last few bytes in case sentinel is split across reads
-            size_t keep = std::min(m_buffer.size(), sentinel.size());
-            size_t writeLen = m_buffer.size() - keep;
 
-            if (writeLen > 0) {
-                write(m_fileFd, m_buffer.data(), writeLen);
-                m_buffer.erase(m_buffer.begin(), m_buffer.begin() + writeLen);
-            }
+    // Check completion
+    if (m_receivedBytes >= m_expectedBytes) {
+        close(m_fileFd);
+        m_fileFd = -1;
+
+        // Drain optional legacy "FILE_END\n" sentinel that old Android client sends
+        const std::string sentinel = "FILE_END\n";
+        if (bufSize() >= sentinel.size() &&
+            std::memcmp(bufData(), sentinel.data(), sentinel.size()) == 0) {
+            consumeBuffer(sentinel.size());
+            Logger::debug("FILE", "Drained legacy FILE_END sentinel");
         }
+
+        m_receivedBytes = 0;
+        m_stage = SessionStage::HEADER;
+
+        sendResponse("FILE_OK\n");
+        Logger::info("FILE", "✅ File received: " + m_fileName +
+                     " (" + std::to_string(m_expectedBytes) + " bytes)");
+
+        // Compact now so the next command parse starts on a clean buffer
+        compactBuffer();
     }
 }
 
