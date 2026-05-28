@@ -4,6 +4,51 @@ import QtQuick.Layouts
 Item {
     id: root
 
+    // ── Drop Area for File Sharing ────────────────────────────────────────
+    DropArea {
+        id: dropArea
+        anchors.fill: parent
+        onDropped: (drop) => {
+            if (drop.hasUrls && typeof AppModel !== "undefined") {
+                AppModel.handleDroppedFiles(drop.urls)
+            }
+        }
+
+        // Overlay that shows when files are dragged over
+        Rectangle {
+            anchors.fill: parent
+            color: "#B30A1220" // Semi-transparent dark background
+            visible: dropArea.containsDrag
+            z: 100
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 240; height: 160
+                radius: 24
+                color: "#1A0A84FF"
+                border.color: "#660A84FF"
+                border.width: 2
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 12
+                    Text {
+                        text: "📁"
+                        font.pixelSize: 48
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    Text {
+                        text: "Drop to Share"
+                        color: "#FFFFFF"
+                        font.pixelSize: 18
+                        font.weight: 700
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                }
+            }
+        }
+    }
+
     // ── Properties injected from C++ context ──────────────────────────────
     property string pinCode:    typeof AppModel !== "undefined" ? AppModel.pinCode    : "------"
     property string deviceName: typeof AppModel !== "undefined" ? AppModel.deviceName : "Linux PC"
@@ -294,6 +339,95 @@ Item {
                         NumberAnimation { to: 1.0;  duration: 350; easing.type: Easing.OutSine }
                         NumberAnimation { to: 0.25; duration: 450; easing.type: Easing.InSine }
                     }
+                }
+            }
+        }
+    }
+
+    // ── AirDrop Animation Overlay ────────────────────────────────────────
+    Rectangle {
+        id: transferOverlay
+        anchors.fill: parent
+        color: "#E6000000" // 90% opacity black
+        visible: typeof AppModel !== "undefined" && AppModel.transferActive
+        z: 200
+
+        property bool isDone: typeof AppModel !== "undefined" && AppModel.transferProgress >= 1.0
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 32
+
+            Item {
+                width: 200; height: 200
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                // Pulsing background rings
+                Repeater {
+                    model: transferOverlay.isDone ? 0 : 3
+                    delegate: Rectangle {
+                        anchors.centerIn: parent
+                        width: 100
+                        height: 100
+                        radius: 50
+                        color: "transparent"
+                        border.color: "#0A84FF"
+                        border.width: 4
+
+                        SequentialAnimation on scale {
+                            loops: Animation.Infinite
+                            PauseAnimation { duration: index * 600 }
+                            NumberAnimation { from: 1.0; to: 2.5; duration: 1800; easing.type: Easing.OutSine }
+                        }
+                        SequentialAnimation on opacity {
+                            loops: Animation.Infinite
+                            PauseAnimation { duration: index * 600 }
+                            NumberAnimation { from: 0.8; to: 0.0; duration: 1800; easing.type: Easing.OutSine }
+                        }
+                    }
+                }
+
+                // Center Avatar
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 120; height: 120
+                    radius: 60
+                    color: "#1E1E1E"
+                    border.color: transferOverlay.isDone ? "#30D158" : "#0A84FF"
+                    border.width: 4
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: transferOverlay.isDone ? "✅" : (typeof AppModel !== "undefined" && AppModel.transferIsSending ? "💻" : "📱")
+                        font.pixelSize: 56
+                    }
+                }
+            }
+
+            Column {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 8
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: transferOverlay.isDone ? "Completed" : 
+                          (typeof AppModel !== "undefined" && AppModel.transferIsSending ? "Pushing to Android..." : "Receiving from Android...")
+                    color: "#FFFFFF"
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: typeof AppModel !== "undefined" ? AppModel.transferFilename : ""
+                    color: "#A0A0A0"
+                    font.pixelSize: 14
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: typeof AppModel !== "undefined" ? Math.round(AppModel.transferProgress * 100) + "%" : "0%"
+                    color: "#0A84FF"
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                    visible: !transferOverlay.isDone
                 }
             }
         }

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <chrono>
 
 namespace titanshare {
 
@@ -37,6 +38,8 @@ private:
     void handleHeader(const std::string& line);
     void handleFileData();
     void sendResponse(const std::string& response);
+    void pushFileList();                        ///< Linux→Android: list sendable files
+    void pushFile(const std::string& filename); ///< Linux→Android: stream file bytes
 
     // O(1) buffer consumption: advance m_bufferOffset instead of erasing.
     // Compact only when offset grows large (avoids O(n) shifts per recv).
@@ -55,8 +58,9 @@ private:
 
     // File transfer state
     std::string m_fileName;
-    size_t m_expectedBytes = 0;   // Total bytes declared in FILE_START header
-    size_t m_receivedBytes = 0;   // Bytes written to disk so far
+    uint64_t m_expectedBytes = 0;   // Total bytes declared in FILE_START header
+    uint64_t m_receivedBytes = 0;   // Bytes written to disk so far
+    std::chrono::steady_clock::time_point m_lastProgressUpdate;
     int m_fileFd = -1;
 
     std::shared_ptr<SessionManager> m_sessionMgr;

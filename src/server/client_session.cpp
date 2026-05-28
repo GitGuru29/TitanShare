@@ -10,9 +10,27 @@
 #include <algorithm>
 #include <cstring>
 #include <cerrno>
+#include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include <poll.h>
 
 namespace titanshare {
+
+static void publishTransferState(bool active, bool isSending, const std::string& filename, float progress) {
+    nlohmann::json j;
+    j["active"] = active;
+    j["is_sending"] = isSending;
+    j["filename"] = filename;
+    j["progress"] = progress;
+    
+    std::ofstream ofs("/run/titanshare/transfer.json");
+    if (ofs.is_open()) {
+        ofs << j.dump();
+        ofs.close();
+    }
+}
 
 ClientSession::ClientSession(int fd, const std::string& remoteIp,
                              std::shared_ptr<SessionManager> sessionMgr,
@@ -134,8 +152,19 @@ void ClientSession::handleHeader(const std::string& line) {
         std::string cmd = line.substr(4);
         while (!cmd.empty() && cmd.front() == ' ') cmd.erase(cmd.begin());
 
-        Logger::info("CMD", "Command: " + cmd + " from " + m_remoteIp);
+        // ── Linux → Android: list files available to push ──────────────────
+        if (cmd == "push_file_list") {
+            pushFileList();
+            return;
+        }
 
+        // ── Linux → Android: stream a specific file to Android ──────────────
+        if (cmd.size() > 10 && cmd.substr(0, 10) == "push_file:") {
+            pushFile(cmd.substr(10));
+            return;
+        }
+
+        Logger::info("CMD", "Command: " + cmd + " from " + m_remoteIp);
         std::string response = m_dispatcher->dispatch(cmd, m_fd);
         if (!response.empty()) {
             sendResponse(response);
@@ -218,7 +247,14 @@ void ClientSession::handleFileData() {
     }
 
     // Check completion
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastProgressUpdate).count() > 100 || m_receivedBytes == m_expectedBytes) {
+        publishTransferState(true, false, m_fileName, static_cast<float>(m_receivedBytes) / static_cast<float>(m_expectedBytes));
+        m_lastProgressUpdate = now;
+    }
+
     if (m_receivedBytes >= m_expectedBytes) {
+        publishTransferState(false, false, "", 1.0f);
         close(m_fileFd);
         m_fileFd = -1;
 
@@ -240,6 +276,111 @@ void ClientSession::handleFileData() {
         // Compact now so the next command parse starts on a clean buffer
         compactBuffer();
     }
+}
+
+// ─── Linux → Android: File Push ──────────────────────────────────────────────
+
+void ClientSession::pushFileList() {
+    namespace fs = std::filesystem;
+    using json   = nlohmann::json;
+
+    // Create the drop folder if it doesn't exist yet
+    std::error_code ec;
+    fs::create_directories(config::SEND_TO_ANDROID_DIR, ec);
+
+    json files = json::array();
+    if (fs::exists(config::SEND_TO_ANDROID_DIR)) {
+        for (auto& entry : fs::directory_iterator(config::SEND_TO_ANDROID_DIR, ec)) {
+            if (!entry.is_regular_file()) continue;
+            json f;
+            f["name"] = entry.path().filename().string();
+            f["size"] = entry.file_size();
+            files.push_back(f);
+        }
+    }
+
+    json response;
+    response["type"]  = "push_file_list";
+    response["files"] = files;
+    sendResponse(response.dump() + "\n");
+
+    Logger::info("PUSH", "📋 File list sent (" + std::to_string(files.size()) + " files)");
+}
+
+void ClientSession::pushFile(const std::string& filename) {
+    namespace fs = std::filesystem;
+
+    // Sanitize: strip any path traversal
+    std::string safe = filename;
+    auto lastSlash = safe.find_last_of("/\\");
+    if (lastSlash != std::string::npos) safe = safe.substr(lastSlash + 1);
+
+    std::string filePath = config::SEND_TO_ANDROID_DIR + "/" + safe;
+
+    if (!fs::exists(filePath) || !fs::is_regular_file(filePath)) {
+        sendResponse("PUSH_ERROR:file_not_found\n");
+        Logger::warn("PUSH", "❌ Requested file not found: " + safe);
+        return;
+    }
+
+    uint64_t fileSize = fs::file_size(filePath);
+    if (fileSize == 0) {
+        sendResponse("PUSH_ERROR:empty_file\n");
+        return;
+    }
+
+    std::ifstream ifs(filePath, std::ios::binary);
+    if (!ifs.is_open()) {
+        sendResponse("PUSH_ERROR:cannot_open\n");
+        Logger::error("PUSH", "❌ Cannot open: " + filePath);
+        return;
+    }
+
+    // Send header: FILE_PUSH:<name>:<size>\n
+    std::string header = "FILE_PUSH:" + safe + ":" + std::to_string(fileSize) + "\n";
+    sendResponse(header);
+
+    Logger::info("PUSH", "📤 Pushing: " + safe + " (" + std::to_string(fileSize) + " bytes)");
+
+    // Stream the raw bytes
+    constexpr size_t CHUNK = 131072; // 128 KB
+    std::vector<char> buf(CHUNK);
+    uint64_t sent = 0;
+    auto lastUpdate = std::chrono::steady_clock::now();
+
+    while (sent < fileSize) {
+        ifs.read(buf.data(), static_cast<std::streamsize>(std::min(CHUNK, static_cast<size_t>(fileSize - sent))));
+        std::streamsize n = ifs.gcount();
+        if (n <= 0) break;
+        
+        ssize_t totalWritten = 0;
+        while (totalWritten < n) {
+            ssize_t written = ::send(m_fd, buf.data() + totalWritten, static_cast<size_t>(n - totalWritten), MSG_NOSIGNAL);
+            if (written < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    struct pollfd pfd{};
+                    pfd.fd = m_fd;
+                    pfd.events = POLLOUT;
+                    poll(&pfd, 1, 10000); // Wait up to 10s for buffer to open up
+                    continue;
+                }
+                publishTransferState(false, true, "", 0.0f);
+                Logger::error("PUSH", "❌ send() failed: " + std::string(strerror(errno)));
+                return;
+            }
+            totalWritten += written;
+        }
+        sent += static_cast<uint64_t>(totalWritten);
+
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count() > 100 || sent == fileSize) {
+            publishTransferState(true, true, safe, static_cast<float>(sent) / static_cast<float>(fileSize));
+            lastUpdate = now;
+        }
+    }
+
+    publishTransferState(false, true, "", 1.0f);
+    Logger::info("PUSH", "✅ Push complete: " + safe);
 }
 
 } // namespace titanshare

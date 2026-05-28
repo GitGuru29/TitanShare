@@ -42,6 +42,7 @@ inline std::string getDataDir() {
 
 inline std::string DATA_DIR            = getDataDir();
 inline std::string RECEIVED_FILES_DIR  = DATA_DIR + "/received_files";
+inline std::string SEND_TO_ANDROID_DIR = DATA_DIR + "/send_to_android";  // Linux→Android drop folder
 inline std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
 inline const std::string CONFIG_FILE_PATH    = "/etc/titanshare/titanshare.conf";
 
