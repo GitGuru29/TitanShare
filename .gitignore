@@ -1,23 +1,2 @@
-# Build
-build/
-cmake-build-*/
-compile_commands.json
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Runtime
-received_files/
-session_qr.png
-session_qr.json
-last_session.json
-
-# System
-.DS_Store
-*.o
-*.so
-*.a
+# Exclude Android project content from this branch
+Titan share/TitanShare-Android/
