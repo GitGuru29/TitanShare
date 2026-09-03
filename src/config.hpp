@@ -47,9 +47,21 @@ inline std::string SESSION_FILE_PATH   = DATA_DIR + "/last_session.json";
 inline const std::string CONFIG_FILE_PATH    = "/etc/titanshare/titanshare.conf";
 
 // IPC — daemon writes this; GUI QFileSystemWatcher reads it
-// Uses /run/titanshare/ (created by RuntimeDirectory in systemd service)
-// NOT /tmp/ — PrivateTmp=true gives the daemon a private /tmp namespace
-inline const std::string PIN_IPC_PATH        = "/run/titanshare/titanshare-pin.json";
+// Resolves /run/titanshare (if systemd/root), $XDG_RUNTIME_DIR/titanshare, or DATA_DIR fallback
+inline std::string getIpcDir() {
+    if (getuid() == 0 || (access("/run/titanshare", W_OK) == 0)) {
+        return "/run/titanshare";
+    }
+    const char* xdgRun = std::getenv("XDG_RUNTIME_DIR");
+    if (xdgRun && *xdgRun) {
+        return std::string(xdgRun) + "/titanshare";
+    }
+    return DATA_DIR;
+}
+
+inline std::string IPC_DIR            = getIpcDir();
+inline std::string PIN_IPC_PATH        = IPC_DIR + "/titanshare-pin.json";
+inline std::string TRANSFER_IPC_PATH   = IPC_DIR + "/transfer.json";
 
 // ─── System Info Sources ────────────────────────────────────────────
 inline const std::string PROC_STAT           = "/proc/stat";

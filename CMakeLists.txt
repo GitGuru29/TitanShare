@@ -12,6 +12,8 @@ find_package(Threads REQUIRED)
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 pkg_check_modules(DBUS    REQUIRED dbus-1)
 pkg_check_modules(AVAHI   REQUIRED avahi-client)
+pkg_check_modules(GST     REQUIRED gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+pkg_check_modules(X11     REQUIRED x11)
 
 # nlohmann/json - header only
 find_path(NLOHMANN_JSON_INCLUDE nlohmann/json.hpp
@@ -43,6 +45,7 @@ set(SOURCES
     src/commands/system_info.cpp
     src/file_transfer/file_receiver.cpp
     src/input/virtual_input.cpp
+    src/mirror/mirror_receiver.cpp
     src/discovery/mdns_advertiser.cpp
     src/notifications/notification_bridge.cpp
 )
@@ -56,6 +59,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${SYSTEMD_INCLUDE_DIRS}
     ${DBUS_INCLUDE_DIRS}
     ${AVAHI_INCLUDE_DIRS}
+    ${GST_INCLUDE_DIRS}
+    ${X11_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -63,6 +68,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${SYSTEMD_LIBRARIES}
     ${DBUS_LIBRARIES}
     ${AVAHI_LIBRARIES}
+    ${GST_LIBRARIES}
+    ${X11_LIBRARIES}
 )
 
 # ─── Install ──────────────────────────────────────────────────────────────────

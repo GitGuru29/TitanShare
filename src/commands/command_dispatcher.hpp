@@ -9,6 +9,7 @@
 
 namespace titanshare {
 
+class MirrorReceiver;
 class VirtualInput;
 class SystemInfo;
 
@@ -34,6 +35,7 @@ private:
 
     std::unique_ptr<VirtualInput> m_input;
     std::unique_ptr<SystemInfo> m_sysInfo;
+    std::unique_ptr<MirrorReceiver> m_mirror;
 };
 
 } // namespace titanshare
