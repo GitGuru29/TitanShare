@@ -1,2 +1,10 @@
 # Exclude Android project content from this branch
 Titan share/TitanShare-Android/
+
+# Build artifacts
+build/
+Makefile
+compile_commands.json
+.qmake.stash
+*.o
+*.pro

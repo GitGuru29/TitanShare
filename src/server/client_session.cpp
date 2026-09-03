@@ -25,7 +25,8 @@ static void publishTransferState(bool active, bool isSending, const std::string&
     j["filename"] = filename;
     j["progress"] = progress;
     
-    std::ofstream ofs("/run/titanshare/transfer.json");
+    std::filesystem::create_directories(std::filesystem::path(titanshare::config::TRANSFER_IPC_PATH).parent_path());
+    std::ofstream ofs(titanshare::config::TRANSFER_IPC_PATH);
     if (ofs.is_open()) {
         ofs << j.dump();
         ofs.close();

@@ -4,6 +4,7 @@
 #include "commands/lock_commands.hpp"
 #include "commands/system_info.hpp"
 #include "input/virtual_input.hpp"
+#include "mirror/mirror_receiver.hpp"
 #include "utils/logger.hpp"
 #include "utils/network.hpp"
 #include "config.hpp"
@@ -164,13 +165,37 @@ std::string CommandDispatcher::handleSystemInfo(int /*clientFd*/) {
 
 std::string CommandDispatcher::handleMirrorCommand(const std::string& cmd, int /*clientFd*/) {
     if (cmd == "START_MIRROR") {
+        if (!m_mirror) {
+            m_mirror = std::make_unique<MirrorReceiver>();
+        }
+
+        if (m_mirror->isRunning()) {
+            // Already running — just report the same endpoint.
+            json response;
+            response["type"] = "MIRROR_READY";
+            response["ip"]   = Network::getLocalIp();
+            response["port"] = config::MIRROR_PORT;
+            return response.dump() + "\n";
+        }
+
+        if (!m_mirror->start(config::MIRROR_PORT)) {
+            json response;
+            response["type"] = "MIRROR_ERROR";
+            response["ip"]   = Network::getLocalIp();
+            response["port"] = config::MIRROR_PORT;
+            return response.dump() + "\n";
+        }
+
         json response;
         response["type"] = "MIRROR_READY";
-        response["ip"] = Network::getLocalIp();
+        response["ip"]   = Network::getLocalIp();
         response["port"] = config::MIRROR_PORT;
         return response.dump() + "\n";
     }
     else if (cmd == "STOP_MIRROR") {
+        if (m_mirror) {
+            m_mirror->stop();
+        }
         return "CMD_OK\n";
     }
     return "CMD_FAIL\n";

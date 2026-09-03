@@ -58,7 +58,10 @@ public:
 
 public:
     Q_INVOKABLE void handleDroppedFiles(const QList<QUrl>& urls) {
-        QString destDir = "/var/lib/titanshare/send_to_android/";
+        QString home = qgetenv("HOME");
+        QString destDir = (!home.isEmpty())
+            ? home + "/.local/share/titanshare/send_to_android/"
+            : "/var/lib/titanshare/send_to_android/";
         QDir dir(destDir);
         if (!dir.exists()) {
             dir.mkpath(".");
@@ -79,11 +82,31 @@ public:
 };
 
 // ─── IPC: read the PIN JSON written by the daemon ────────────────────────────
-// Must match config::PIN_IPC_PATH in the daemon (/run/titanshare/ via RuntimeDirectory)
-static const QString PIN_IPC_PATH = "/run/titanshare/titanshare-pin.json";
+static QString getIpcFilePath(const QString& filename) {
+    if (QFile::exists("/run/titanshare/" + filename)) {
+        return "/run/titanshare/" + filename;
+    }
+    QString xdgRun = qgetenv("XDG_RUNTIME_DIR");
+    if (!xdgRun.isEmpty()) {
+        QString p = xdgRun + "/titanshare/" + filename;
+        if (QFile::exists(p)) return p;
+    }
+    QString home = qgetenv("HOME");
+    if (!home.isEmpty()) {
+        QString p = home + "/.local/share/titanshare/" + filename;
+        if (QFile::exists(p)) return p;
+    }
+    if (QFile::exists("/tmp/titanshare/" + filename)) {
+        return "/tmp/titanshare/" + filename;
+    }
+    if (!xdgRun.isEmpty()) return xdgRun + "/titanshare/" + filename;
+    if (!home.isEmpty()) return home + "/.local/share/titanshare/" + filename;
+    return "/run/titanshare/" + filename;
+}
 
 static QString readPin(QString& hostOut) {
-    QFile f(PIN_IPC_PATH);
+    QString path = getIpcFilePath("titanshare-pin.json");
+    QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) return "------";
     auto doc = QJsonDocument::fromJson(f.readAll());
     auto obj = doc.object();
@@ -91,10 +114,9 @@ static QString readPin(QString& hostOut) {
     return obj.value("pin").toString("------");
 }
 
-static const QString TRANSFER_IPC_PATH = "/run/titanshare/transfer.json";
-
 static void readTransferState(AppModel* model) {
-    QFile f(TRANSFER_IPC_PATH);
+    QString path = getIpcFilePath("transfer.json");
+    QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
         model->updateTransferState(false, false, "", 0.0);
         return;
@@ -131,8 +153,10 @@ int main(int argc, char *argv[]) {
 
     // ── Watch for daemon PIN updates ─────────────────────────────────
     QFileSystemWatcher watcher;
-    watcher.addPath(PIN_IPC_PATH);
-    watcher.addPath(TRANSFER_IPC_PATH);
+    QString curPinPath = getIpcFilePath("titanshare-pin.json");
+    QString curTransferPath = getIpcFilePath("transfer.json");
+    if (QFile::exists(curPinPath)) watcher.addPath(curPinPath);
+    if (QFile::exists(curTransferPath)) watcher.addPath(curTransferPath);
 
     // Also poll once per second in case inotify misses the first write
     QTimer* pollTimer = new QTimer(&app);
@@ -152,12 +176,12 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&watcher, &QFileSystemWatcher::fileChanged,
                      &app, [&](const QString& path) {
-        if (path == PIN_IPC_PATH) {
+        if (path.endsWith("titanshare-pin.json")) {
             refreshPin();
-            if (!watcher.files().contains(PIN_IPC_PATH)) watcher.addPath(PIN_IPC_PATH);
-        } else if (path == TRANSFER_IPC_PATH) {
+            if (!watcher.files().contains(path) && QFile::exists(path)) watcher.addPath(path);
+        } else if (path.endsWith("transfer.json")) {
             readTransferState(appModel);
-            if (!watcher.files().contains(TRANSFER_IPC_PATH)) watcher.addPath(TRANSFER_IPC_PATH);
+            if (!watcher.files().contains(path) && QFile::exists(path)) watcher.addPath(path);
         }
     });
 

@@ -100,6 +100,8 @@ void SessionManager::persistSession() {
         if (ofs.is_open()) ofs << j.dump();
 
         // Write IPC file for GUI (QFileSystemWatcher picks this up)
+        std::filesystem::create_directories(
+            std::filesystem::path(config::PIN_IPC_PATH).parent_path());
         std::ofstream ipc(config::PIN_IPC_PATH);
         if (ipc.is_open()) {
             json ipcJson;
