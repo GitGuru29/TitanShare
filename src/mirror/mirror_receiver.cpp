@@ -132,6 +132,15 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
     XChangeProperty(dpy, win, wmClass, stringAtom, 8, PropModeReplace,
                     reinterpret_cast<const unsigned char*>(wmClassBuf), totalLen);
 
+    // Set phone aspect ratio hint (9:19 portrait) for window managers
+    XSizeHints hints{};
+    hints.flags = PAspect;
+    hints.min_aspect.x = 9;
+    hints.min_aspect.y = 19;
+    hints.max_aspect.x = 9;
+    hints.max_aspect.y = 19;
+    XSetWMNormalHints(dpy, win, &hints);
+
     XFlush(dpy);
     XCloseDisplay(dpy);
     Logger::info("MIRROR", "Renamed mirror sink window class & title to 'TITANMIRROR'");
@@ -190,6 +199,13 @@ bool MirrorReceiver::Impl::buildPipeline() {
         g_set_prgname("TITANMIRROR");
         g_set_application_name("TITANMIRROR");
     });
+
+    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a mobile phone
+    if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size (monitor_w*.22) (monitor_h*.85)\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
+    }
 
     // Reset before building
     pipeline = nullptr;
