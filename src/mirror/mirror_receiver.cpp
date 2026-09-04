@@ -6,6 +6,7 @@
 #include <gst/video/videooverlay.h>
 
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #include <netinet/in.h>
 #include <poll.h>
@@ -81,9 +82,11 @@ gboolean onBusMessage(GstBus* bus, GstMessage* msg, gpointer user_data) {
     return TRUE;
 }
 
+// Helper to set sink title and overlay callbacks
+void setSinkPropertiesAndSignals(GstElement* element);
+
 // Renames the X11 window created by the video sink from the GStreamer default
-// to "TitanShare" by setting WM_NAME (and _NET_WM_NAME for UTF-8 compliant WMs)
-// on the sink's own window.
+// to "TITAN MIRROR" by setting WM_NAME, _NET_WM_NAME, and WM_CLASS on the sink's window.
 void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data*/) {
     Display* dpy = XOpenDisplay(nullptr);
     if (!dpy) {
@@ -92,10 +95,11 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
     }
 
     Window win = static_cast<Window>(xid);
+    const char* title = "TITAN MIRROR";
 
     // Legacy WM_NAME
-    const char* title = "TitanShare";
     XStoreName(dpy, win, title);
+    XSetIconName(dpy, win, title);
 
     // Modern UTF-8 _NET_WM_NAME recommended by the EWMH spec
     Atom netWmName = XInternAtom(dpy, "_NET_WM_NAME", False);
@@ -104,9 +108,73 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
                     reinterpret_cast<const unsigned char*>(title),
                     static_cast<int>(strlen(title)));
 
+    Atom netWmIconName = XInternAtom(dpy, "_NET_WM_ICON_NAME", False);
+    XChangeProperty(dpy, win, netWmIconName, utf8, 8, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(title),
+                    static_cast<int>(strlen(title)));
+
+    // Set WM_CLASS using standard XSetClassHint
+    XClassHint classHint{};
+    char resName[] = "TITAN MIRROR";
+    char resClass[] = "TITAN MIRROR";
+    classHint.res_name = resName;
+    classHint.res_class = resClass;
+    XSetClassHint(dpy, win, &classHint);
+
+    // Also write property directly for XWayland window managers
+    char wmClassBuf[128];
+    int resNameLen  = snprintf(wmClassBuf, sizeof(wmClassBuf), "%s", title);
+    int resClassLen = snprintf(wmClassBuf + resNameLen + 1, sizeof(wmClassBuf) - resNameLen - 1, "%s", title);
+    int totalLen    = resNameLen + 1 + resClassLen + 1;
+
+    Atom stringAtom = XInternAtom(dpy, "STRING", False);
+    Atom wmClass    = XInternAtom(dpy, "WM_CLASS", False);
+    XChangeProperty(dpy, win, wmClass, stringAtom, 8, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(wmClassBuf), totalLen);
+
     XFlush(dpy);
     XCloseDisplay(dpy);
-    Logger::info("MIRROR", "Renamed mirror sink window to 'TitanShare'");
+    Logger::info("MIRROR", "Renamed mirror sink window class & title to 'TITAN MIRROR'");
+}
+
+void setSinkPropertiesAndSignals(GstElement* element) {
+    if (!element) return;
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "title")) {
+        g_object_set(element, "title", "TITAN MIRROR", nullptr);
+    }
+    if (GST_IS_VIDEO_OVERLAY(element)) {
+        g_signal_connect(element, "prepare-xwindow-id", G_CALLBACK(onPrepareXWindowId), nullptr);
+        g_signal_connect(element, "prepare-window-handle", G_CALLBACK(onPrepareXWindowId), nullptr);
+    }
+}
+
+void onDeepElementAdded(GstBin* /*bin*/, GstBin* /*sub_bin*/, GstElement* element, gpointer /*user_data*/) {
+    setSinkPropertiesAndSignals(element);
+}
+
+GstBusSyncReply busSyncHandler(GstBus* bus, GstMessage* msg, gpointer user_data) {
+    (void)bus;
+    (void)user_data;
+    if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ELEMENT) {
+        const GstStructure* s = gst_message_get_structure(msg);
+        if (s) {
+            const char* name = gst_structure_get_name(s);
+            if (name && (strcmp(name, "prepare-window-handle") == 0 || strcmp(name, "prepare-xwindow-id") == 0)) {
+                GstElement* sink = GST_ELEMENT_CAST(GST_MESSAGE_SRC(msg));
+                if (sink) {
+                    setSinkPropertiesAndSignals(sink);
+                }
+                guintptr xid = 0;
+                if (!gst_structure_get(s, "xid", G_TYPE_ULONG, &xid, nullptr)) {
+                    gst_structure_get(s, "window-handle", G_TYPE_POINTER, &xid, nullptr);
+                }
+                if (xid != 0) {
+                    onPrepareXWindowId(sink, xid, nullptr);
+                }
+            }
+        }
+    }
+    return GST_BUS_PASS;
 }
 
 } // namespace
@@ -114,11 +182,13 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
 // ─── Pipeline construction ───────────────────────────────────────────────────
 
 bool MirrorReceiver::Impl::buildPipeline() {
-    // Make sure the GStreamer core & plugins are initialised exactly once.
-    // gst_parse_launch does NOT reliably auto-register plugin elements
-    // (e.g. "appsrc" from the app plugin) without an explicit gst_init().
+    // Make sure the GStreamer core & plugins are initialised with program & app names.
     static std::once_flag initFlag;
-    std::call_once(initFlag, []() { gst_init(nullptr, nullptr); });
+    std::call_once(initFlag, []() {
+        g_set_prgname("TITAN MIRROR");
+        g_set_application_name("TITAN MIRROR");
+        gst_init(nullptr, nullptr);
+    });
 
     // Reset before building
     pipeline = nullptr;
@@ -130,7 +200,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
         " ! videoconvert "
-        " ! autovideosink sync=false",
+        " ! autovideosink name=vsink sync=false",
         &error);
 
     if (!pipeline) {
@@ -148,42 +218,33 @@ bool MirrorReceiver::Impl::buildPipeline() {
         return false;
     }
 
-    // Rename the video sink's own X11 window from "GStreamer" to our brand.
-    // xvimagesink/ximagesink emit "prepare-xwindow-id" with the XID of the
-    // window they create; we set WM_NAME/_NET_WM_NAME on it there.
-    GstElement* videosink = nullptr;
-    {
-        GstIterator* it = gst_bin_iterate_sinks(GST_BIN(pipeline));
-        GValue item = G_VALUE_INIT;
-        while (gst_iterator_next(it, &item) == GST_ITERATOR_OK) {
-            GstElement* e = GST_ELEMENT_CAST(g_value_get_object(&item));
-            if (GST_IS_VIDEO_OVERLAY(e)) {
-                videosink = static_cast<GstElement*>(gst_object_ref(e));
-                g_value_reset(&item);
-                break;
-            }
-            g_value_reset(&item);
-        }
-        gst_iterator_free(it);
-    }
-    if (videosink) {
-        g_signal_connect(videosink, "prepare-xwindow-id",
-                         G_CALLBACK(onPrepareXWindowId), nullptr);
-        gst_object_unref(videosink);
-    } else {
-        Logger::debug("MIRROR", "No overlay video sink found; leaving default window title");
-    }
+    // Attach deep element listener so any inner sink added by autovideosink gets configured
+    g_signal_connect(pipeline, "deep-element-added", G_CALLBACK(onDeepElementAdded), nullptr);
 
-    // Announce caps so jpegdec/configures immediately
-    GstCaps* caps = gst_caps_new_simple("image/jpeg", nullptr);
-    g_object_set(appsrc, "caps", caps, nullptr);
-    gst_caps_unref(caps);
-
-    // Attach a bus watcher for error reporting
+    // Attach bus sync handler to intercept prepare-window-handle / prepare-xwindow-id immediately
     GstBus* bus = gst_element_get_bus(pipeline);
+    gst_bus_set_sync_handler(bus, busSyncHandler, nullptr, nullptr);
     gst_bus_add_signal_watch(bus);
     g_signal_connect(bus, "message", G_CALLBACK(onBusMessage), this);
     gst_object_unref(bus);
+
+    // Transition to READY so autovideosink resolves its actual underlying video sink
+    gst_element_set_state(pipeline, GST_STATE_READY);
+
+    // Iterate sinks and configure properties / signals on existing sink elements
+    GstIterator* it = gst_bin_iterate_sinks(GST_BIN(pipeline));
+    GValue item = G_VALUE_INIT;
+    while (gst_iterator_next(it, &item) == GST_ITERATOR_OK) {
+        GstElement* e = GST_ELEMENT_CAST(g_value_get_object(&item));
+        setSinkPropertiesAndSignals(e);
+        g_value_reset(&item);
+    }
+    gst_iterator_free(it);
+
+    // Announce caps so jpegdec configures immediately
+    GstCaps* caps = gst_caps_new_simple("image/jpeg", nullptr);
+    g_object_set(appsrc, "caps", caps, nullptr);
+    gst_caps_unref(caps);
 
     if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
         Logger::error("MIRROR", "Failed to set GStreamer pipeline to PLAYING");
