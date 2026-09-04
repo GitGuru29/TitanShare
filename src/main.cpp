@@ -45,9 +45,9 @@ namespace {
 int main(int argc, char* argv[]) {
     using namespace titanshare;
 
-    // Set GLib prgname and application name so all window managers & compositors see "TITAN MIRROR" as the app class
-    g_set_prgname("TITAN MIRROR");
-    g_set_application_name("TITAN MIRROR");
+    // Set GLib prgname and application name so all window managers & compositors see "TITANMIRROR" as the app class
+    g_set_prgname("TITANMIRROR");
+    g_set_application_name("TITANMIRROR");
 
     // ─── Initialize Logger ────────────────────────────────────
     Logger::init(LogLevel::INFO);

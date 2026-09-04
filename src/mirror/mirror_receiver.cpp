@@ -86,7 +86,7 @@ gboolean onBusMessage(GstBus* bus, GstMessage* msg, gpointer user_data) {
 void setSinkPropertiesAndSignals(GstElement* element);
 
 // Renames the X11 window created by the video sink from the GStreamer default
-// to "TITAN MIRROR" by setting WM_NAME, _NET_WM_NAME, and WM_CLASS on the sink's window.
+// to "TITANMIRROR" by setting WM_NAME, _NET_WM_NAME, and WM_CLASS on the sink's window.
 void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data*/) {
     Display* dpy = XOpenDisplay(nullptr);
     if (!dpy) {
@@ -95,7 +95,7 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
     }
 
     Window win = static_cast<Window>(xid);
-    const char* title = "TITAN MIRROR";
+    const char* title = "TITANMIRROR";
 
     // Legacy WM_NAME
     XStoreName(dpy, win, title);
@@ -115,8 +115,8 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
 
     // Set WM_CLASS using standard XSetClassHint
     XClassHint classHint{};
-    char resName[] = "TITAN MIRROR";
-    char resClass[] = "TITAN MIRROR";
+    char resName[] = "TITANMIRROR";
+    char resClass[] = "TITANMIRROR";
     classHint.res_name = resName;
     classHint.res_class = resClass;
     XSetClassHint(dpy, win, &classHint);
@@ -134,13 +134,13 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
 
     XFlush(dpy);
     XCloseDisplay(dpy);
-    Logger::info("MIRROR", "Renamed mirror sink window class & title to 'TITAN MIRROR'");
+    Logger::info("MIRROR", "Renamed mirror sink window class & title to 'TITANMIRROR'");
 }
 
 void setSinkPropertiesAndSignals(GstElement* element) {
     if (!element) return;
     if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "title")) {
-        g_object_set(element, "title", "TITAN MIRROR", nullptr);
+        g_object_set(element, "title", "TITANMIRROR", nullptr);
     }
     if (GST_IS_VIDEO_OVERLAY(element)) {
         g_signal_connect(element, "prepare-xwindow-id", G_CALLBACK(onPrepareXWindowId), nullptr);
@@ -185,29 +185,46 @@ bool MirrorReceiver::Impl::buildPipeline() {
     // Make sure the GStreamer core & plugins are initialised with program & app names.
     static std::once_flag initFlag;
     std::call_once(initFlag, []() {
-        g_set_prgname("TITAN MIRROR");
-        g_set_application_name("TITAN MIRROR");
         gst_init(nullptr, nullptr);
+        // gst_init() may reset the application name; re-apply ours after
+        g_set_prgname("TITANMIRROR");
+        g_set_application_name("TITANMIRROR");
     });
 
     // Reset before building
     pipeline = nullptr;
     appsrc   = nullptr;
 
+    // Use native waylandsink so Hyprland/Waybar sees app_id = g_get_prgname() = "TITANMIRROR"
+    // autovideosink picks X11 sinks (through XWayland) which hardcode WM_CLASS = "GStreamer"
     GError* error = nullptr;
     pipeline = gst_parse_launch(
         "appsrc name=src format=time is-live=true do-timestamp=false "
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
         " ! videoconvert "
-        " ! autovideosink name=vsink sync=false",
+        " ! waylandsink name=vsink sync=false",
         &error);
 
     if (!pipeline) {
-        Logger::error("MIRROR", "Failed to create GStreamer pipeline: " +
+        Logger::warn("MIRROR", "waylandsink failed, falling back to autovideosink: " +
                       std::string(error ? error->message : "unknown"));
-        if (error) g_error_free(error);
-        return false;
+        if (error) { g_error_free(error); error = nullptr; }
+
+        pipeline = gst_parse_launch(
+            "appsrc name=src format=time is-live=true do-timestamp=false "
+            " ! queue max-size-buffers=4 leaky=downstream "
+            " ! jpegdec "
+            " ! videoconvert "
+            " ! autovideosink name=vsink sync=false",
+            &error);
+
+        if (!pipeline) {
+            Logger::error("MIRROR", "Failed to create GStreamer pipeline: " +
+                          std::string(error ? error->message : "unknown"));
+            if (error) g_error_free(error);
+            return false;
+        }
     }
 
     appsrc = gst_bin_get_by_name(GST_BIN(pipeline), "src");
@@ -228,7 +245,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
     g_signal_connect(bus, "message", G_CALLBACK(onBusMessage), this);
     gst_object_unref(bus);
 
-    // Transition to READY so autovideosink resolves its actual underlying video sink
+    // Transition to READY so sink resolves
     gst_element_set_state(pipeline, GST_STATE_READY);
 
     // Iterate sinks and configure properties / signals on existing sink elements
