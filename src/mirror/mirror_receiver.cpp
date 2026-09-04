@@ -200,24 +200,27 @@ bool MirrorReceiver::Impl::buildPipeline() {
         g_set_application_name("TITANMIRROR");
     });
 
-    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a mobile phone
+    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a mobile phone with rounded corners
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size (monitor_w*.22) (monitor_h*.85)\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size (monitor_w*.23) (monitor_h*.86)\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 24\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_size 2\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_color rgb(313244)\" >/dev/null 2>&1");
     }
 
     // Reset before building
     pipeline = nullptr;
     appsrc   = nullptr;
 
-    // Use native waylandsink so Hyprland/Waybar sees app_id = g_get_prgname() = "TITANMIRROR"
-    // autovideosink picks X11 sinks (through XWayland) which hardcode WM_CLASS = "GStreamer"
+    // Use native waylandsink with videobox for black screen bezels
     GError* error = nullptr;
     pipeline = gst_parse_launch(
         "appsrc name=src format=time is-live=true do-timestamp=false "
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
+        " ! videobox top=-16 bottom=-16 left=-16 right=-16 fill=black "
         " ! videoconvert "
         " ! waylandsink name=vsink sync=false",
         &error);
@@ -231,6 +234,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
             "appsrc name=src format=time is-live=true do-timestamp=false "
             " ! queue max-size-buffers=4 leaky=downstream "
             " ! jpegdec "
+            " ! videobox top=-16 bottom=-16 left=-16 right=-16 fill=black "
             " ! videoconvert "
             " ! autovideosink name=vsink sync=false",
             &error);
