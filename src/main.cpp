@@ -22,6 +22,8 @@
 #include <filesystem>
 #include <iostream>
 
+#include <glib.h>
+
 #ifdef __has_include
 #if __has_include(<systemd/sd-daemon.h>)
 #include <systemd/sd-daemon.h>
@@ -42,6 +44,10 @@ namespace {
 
 int main(int argc, char* argv[]) {
     using namespace titanshare;
+
+    // Set GLib prgname and application name so all window managers & compositors see "TITAN MIRROR" as the app class
+    g_set_prgname("TITAN MIRROR");
+    g_set_application_name("TITAN MIRROR");
 
     // ─── Initialize Logger ────────────────────────────────────
     Logger::init(LogLevel::INFO);
