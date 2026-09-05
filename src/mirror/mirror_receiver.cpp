@@ -200,12 +200,12 @@ bool MirrorReceiver::Impl::buildPipeline() {
         g_set_application_name("TITANMIRROR");
     });
 
-    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display
+    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display with uniform 3mm bezels
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 400 818\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 400 807\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 20\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 24\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_size 2\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_color rgb(313244)\" >/dev/null 2>&1");
     }
@@ -214,12 +214,13 @@ bool MirrorReceiver::Impl::buildPipeline() {
     pipeline = nullptr;
     appsrc   = nullptr;
 
-    // Use native waylandsink so Hyprland/Waybar sees app_id = g_get_prgname() = "TITANMIRROR"
+    // Use native waylandsink with uniform 10px (3mm) screen bezels via videobox
     GError* error = nullptr;
     pipeline = gst_parse_launch(
         "appsrc name=src format=time is-live=true do-timestamp=false "
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
+        " ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
         " ! videoconvert "
         " ! waylandsink name=vsink sync=false",
         &error);
@@ -233,6 +234,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
             "appsrc name=src format=time is-live=true do-timestamp=false "
             " ! queue max-size-buffers=4 leaky=downstream "
             " ! jpegdec "
+            " ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
             " ! videoconvert "
             " ! autovideosink name=vsink sync=false",
             &error);
