@@ -203,9 +203,9 @@ bool MirrorReceiver::Impl::buildPipeline() {
     // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display with uniform 3mm bezels
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 400 807\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 384 814\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 24\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 26\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_size 2\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_color rgb(313244)\" >/dev/null 2>&1");
     }
@@ -234,7 +234,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
             "appsrc name=src format=time is-live=true do-timestamp=false "
             " ! queue max-size-buffers=4 leaky=downstream "
             " ! jpegdec "
-            " ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
+" ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
             " ! videoconvert "
             " ! autovideosink name=vsink sync=false",
             &error);
