@@ -73,7 +73,20 @@ void ClientSession::compactBuffer() {
 // ─── Data entry point ─────────────────────────────────────────────────────────
 
 void ClientSession::onData(const char* data, size_t len) {
+    if (m_closed) return;
+
     m_buffer.insert(m_buffer.end(), data, data + len);
+
+    // Memory DoS guard: an unauthenticated client must never grow our
+    // buffer unboundedly (e.g. by streaming bytes without a newline).
+    if (m_stage == SessionStage::AUTH && m_buffer.size() > config::AUTH_MAX_BUFFER) {
+        Logger::warn("AUTH", "Pre-auth buffer exceeded from " + m_remoteIp +
+                     ", closing connection");
+        m_closed = true;
+        close(m_fd);
+        return;
+    }
+
     processBuffer();
 }
 
@@ -84,7 +97,7 @@ void ClientSession::sendResponse(const std::string& response) {
 // ─── State machine ────────────────────────────────────────────────────────────
 
 void ClientSession::processBuffer() {
-    while (bufSize() > 0) {
+    while (!m_closed && bufSize() > 0) {
         if (m_stage == SessionStage::AUTH) {
             // Find newline in the readable portion
             const char* start = bufData();
@@ -122,6 +135,15 @@ void ClientSession::processBuffer() {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 void ClientSession::handleAuth(const std::string& line) {
+    // A previously banned IP is refused outright until the ban expires.
+    if (m_sessionMgr->isIpBlocked(m_remoteIp)) {
+        sendResponse("AUTH_BLOCKED\n");
+        Logger::warn("AUTH", "🚫 Banned IP attempted connection: " + m_remoteIp);
+        m_closed = true;
+        close(m_fd);
+        return;
+    }
+
     std::string pin = line;
 
     // Strip optional "AUTH:" prefix
@@ -137,12 +159,24 @@ void ClientSession::handleAuth(const std::string& line) {
 
     if (m_sessionMgr->validateKey(pin)) {
         m_sessionKey = pin;
+        m_sessionMgr->registerAuthSuccess(m_remoteIp);
         sendResponse("AUTH_OK\n");
         m_stage = SessionStage::HEADER;
         Logger::info("AUTH", "✅ Device paired via PIN: " + m_remoteIp);
     } else {
         sendResponse("AUTH_FAIL\n");
+        m_sessionMgr->registerAuthFailure(m_remoteIp);
+        ++m_authAttempts;
         Logger::warn("AUTH", "❌ Wrong PIN from: " + m_remoteIp + " (got: " + pin + ")");
+
+        // Hard cap on guesses per connection: forces reconnect, which exposes
+        // the attacker to the per-IP ban machinery anyway.
+        if (m_authAttempts >= config::AUTH_ATTEMPTS_PER_CONNECTION) {
+            Logger::warn("AUTH", "🔨 Too many PIN attempts from " + m_remoteIp +
+                         ", closing connection");
+            m_closed = true;
+            close(m_fd);
+        }
     }
 }
 
@@ -195,6 +229,13 @@ void ClientSession::handleHeader(const std::string& line) {
         if (m_expectedBytes == 0) {
             sendResponse("CMD_FAIL\n");
             Logger::error("FILE", "Received FILE_START with size=0, rejecting");
+            return;
+        }
+
+        if (m_expectedBytes > config::MAX_RECEIVE_FILE_BYTES) {
+            sendResponse("CMD_FAIL\n");
+            Logger::error("FILE", "Rejected oversized file transfer: " +
+                          std::to_string(m_expectedBytes) + " bytes from " + m_remoteIp);
             return;
         }
 

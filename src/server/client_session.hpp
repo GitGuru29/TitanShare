@@ -55,6 +55,8 @@ private:
     std::vector<char> m_buffer;
     size_t m_bufferOffset = 0;  // read head into m_buffer
     std::string m_sessionKey;
+    int m_authAttempts = 0;     // PIN guesses made on this connection
+    bool m_closed = false;      // true once we've aborted this socket
 
     // File transfer state
     std::string m_fileName;

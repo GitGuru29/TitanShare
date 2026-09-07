@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <nlohmann/json.hpp>
 
 namespace titanshare {
@@ -75,6 +76,53 @@ std::string SessionManager::currentIp() const {
     return m_currentIp;
 }
 
+// ─── Brute-force protection ──────────────────────────────────────────────
+
+bool SessionManager::isIpBlocked(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    auto it = m_blockedUntil.find(ip);
+    if (it == m_blockedUntil.end()) return false;
+
+    if (it->second <= std::chrono::steady_clock::now()) {
+        // Ban expired — clear all bookkeeping for this IP
+        m_blockedUntil.erase(it);
+        m_authFailures.erase(ip);
+        m_banCount.erase(ip);
+        return false;
+    }
+    return true;
+}
+
+void SessionManager::registerAuthFailure(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    int failures = ++m_authFailures[ip];
+    if (failures >= config::AUTH_FAIL_THRESHOLD) {
+        // Escalate: each ban doubles the duration, capped at AUTH_BAN_MAX_SECS
+        int secs = config::AUTH_BAN_INITIAL_SECS;
+        int nBans = m_banCount[ip]++;
+        for (int i = 0; i < nBans && secs < config::AUTH_BAN_MAX_SECS; ++i) {
+            secs *= 2;
+        }
+        secs = std::min(secs, config::AUTH_BAN_MAX_SECS);
+
+        m_blockedUntil[ip] = std::chrono::steady_clock::now() +
+                             std::chrono::seconds(secs);
+        m_authFailures[ip] = 0;  // restart the window; next threshold escalates again
+
+        Logger::warn("AUTH", "🚫 IP " + ip + " banned for " +
+                     std::to_string(secs) + "s after repeated failures");
+    }
+}
+
+void SessionManager::registerAuthSuccess(const std::string& ip) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_authFailures.erase(ip);
+    m_blockedUntil.erase(ip);
+    m_banCount.erase(ip);
+}
+
 std::string SessionManager::toJson() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     json j;
@@ -83,6 +131,14 @@ std::string SessionManager::toJson() const {
     j["pin"]  = m_currentPin;
     j["host"] = m_hostname;
     return j.dump();
+}
+
+void SessionManager::setStrictFilePerms(const std::string& file) {
+    // PIN files must never be readable by other local users/processes.
+    if (chmod(file.c_str(), S_IRUSR | S_IWUSR) != 0) {
+        Logger::warn("SESSION", "chmod(0600) on " + file + " failed: " +
+                     std::string(strerror(errno)));
+    }
 }
 
 void SessionManager::persistSession() {
@@ -95,9 +151,13 @@ void SessionManager::persistSession() {
         j["pin"]  = m_currentPin;
         j["host"] = m_hostname;
 
-        // Write session file
+        // Write session file (then restrict perms so only the owner can read it)
         std::ofstream ofs(config::SESSION_FILE_PATH);
-        if (ofs.is_open()) ofs << j.dump();
+        if (ofs.is_open()) {
+            ofs << j.dump();
+            ofs.close();
+            setStrictFilePerms(config::SESSION_FILE_PATH);
+        }
 
         // Write IPC file for GUI (QFileSystemWatcher picks this up)
         std::filesystem::create_directories(
@@ -110,6 +170,8 @@ void SessionManager::persistSession() {
             ipcJson["ip"]   = m_currentIp;
             ipcJson["port"] = config::TCP_PORT;
             ipc << ipcJson.dump();
+            ipc.close();
+            setStrictFilePerms(config::PIN_IPC_PATH);
         }
     } catch (const std::exception& e) {
         Logger::error("SESSION", "Failed to persist session: " + std::string(e.what()));
