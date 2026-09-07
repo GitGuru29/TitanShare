@@ -200,7 +200,7 @@ bool MirrorReceiver::Impl::buildPipeline() {
         g_set_application_name("TITANMIRROR");
     });
 
-    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display with uniform 3mm bezels
+    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 384 814\" >/dev/null 2>&1");
@@ -214,13 +214,12 @@ bool MirrorReceiver::Impl::buildPipeline() {
     pipeline = nullptr;
     appsrc   = nullptr;
 
-    // Use native waylandsink with uniform 10px (3mm) screen bezels via videobox
+    // Use native waylandsink with no bezels
     GError* error = nullptr;
     pipeline = gst_parse_launch(
         "appsrc name=src format=time is-live=true do-timestamp=false "
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
-        " ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
         " ! videoconvert "
         " ! waylandsink name=vsink sync=false",
         &error);
