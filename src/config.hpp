@@ -25,7 +25,9 @@ inline const std::string MDNS_SERVICE_TYPE = "_titanshare._tcp";
 // ─── Pairing PIN ────────────────────────────────────────────────────
 constexpr int      PAIRING_PIN_SECS   = 300;    // PIN refresh interval (5 min)
 constexpr int      PAIRING_PIN_DIGITS = 6;      // PIN length shown on screen
-constexpr int      MAX_RECENT_PINS    = 3;      // Rolling window of valid PINs
+constexpr int      MAX_RECENT_PINS    = 12;     // Rolling window of valid PINs (12 * 5min = 60min),
+                                                // so a paired phone can still reconnect after a longer
+                                                // background gap without the PIN having "expired".
 
 // ─── Security (brute-force / DoS hardening) ─────────────────────────
 constexpr int      AUTH_ATTEMPTS_PER_CONNECTION = 3;     // Max PIN guesses per TCP connection

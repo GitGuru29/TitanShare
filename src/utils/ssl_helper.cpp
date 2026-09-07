@@ -6,6 +6,7 @@
 #include <openssl/x509.h>
 #include <sys/socket.h>
 #include <poll.h>
+#include <chrono>
 
 namespace titanshare {
 
@@ -91,25 +92,48 @@ SSL* SslHelper::acceptTls(int clientFd) {
 
     SSL_set_fd(ssl, clientFd);
 
-    // Non-blocking poll for TLS handshake (2 sec max)
+    // The client fd is non-blocking (see TcpServer::acceptConnection), so a
+    // single SSL_accept() may legitimately return SSL_ERROR_WANT_READ /
+    // SSL_ERROR_WANT_WRITE mid-handshake. Loop with poll() until the
+    // handshake completes or the deadline expires; this also lets a non-TLS
+    // client (raw fallback) fail fast instead of hanging.
     struct pollfd pfd{};
     pfd.fd = clientFd;
-    pfd.events = POLLIN;
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(5000);
 
-    if (poll(&pfd, 1, 2000) <= 0) {
-        // Handshake timeout or non-TLS connection
-        SSL_free(ssl);
-        return nullptr;
+    for (;;) {
+        int ret = SSL_accept(ssl);
+        if (ret == 1) {
+            Logger::info("SSL", "🔒 TLS Handshake accepted on client fd " +
+                          std::to_string(clientFd));
+            return ssl;
+        }
+
+        int err = SSL_get_error(ssl, ret);
+        if (err == SSL_ERROR_WANT_READ) {
+            pfd.events = POLLIN;
+        } else if (err == SSL_ERROR_WANT_WRITE) {
+            pfd.events = POLLOUT;
+        } else {
+            // Real failure or a non-TLS connection.
+            SSL_free(ssl);
+            return nullptr;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const long remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - now).count();
+        if (remaining <= 0) {
+            SSL_free(ssl);
+            return nullptr;
+        }
+
+        if (poll(&pfd, 1, static_cast<int>(remaining)) <= 0) {
+            SSL_free(ssl);
+            return nullptr;
+        }
     }
-
-    int ret = SSL_accept(ssl);
-    if (ret <= 0) {
-        SSL_free(ssl);
-        return nullptr;
-    }
-
-    Logger::info("SSL", "🔒 TLS Handshake accepted on client fd " + std::to_string(clientFd));
-    return ssl;
 }
 
 void SslHelper::closeTls(SSL* ssl) {
