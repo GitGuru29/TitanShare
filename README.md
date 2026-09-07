@@ -101,10 +101,11 @@ Uses a TCP-based protocol on port 9999, compatible with the TitanShare Android a
 
 ## Screen Mirroring
 
-The mirror feature uses GStreamer to receive length-prefixed JPEG frames from the Android device:
+The mirror feature receives length-prefixed JPEG frames from the Android device and renders them on the desktop as a zero-bezel virtual mobile display:
 
 - **Wire format**: `[uint32 BE length][JPEG payload]` per frame over TCP port 5001
-- **Pipeline**: `appsrc ! queue ! jpegdec ! videoconvert ! autovideosink`
+- **Pipeline**: `appsrc ! queue ! jpegdec ! videoscale ! video/x-raw,width=384,height=814 ! videoconvert ! waylandsink` (fallback to `autovideosink`)
+- **Display**: Native 0-bezel floating window (`TITANMIRROR`) automatically sized to 384×814 with smooth corner rounding (`26px`) on Hyprland / Wayland compositors
 - **Backpressure**: Max 8 frames queued, excess frames dropped
 - **Frame guard**: Rejects frames larger than 24MB
 
