@@ -132,13 +132,13 @@ void onPrepareXWindowId(GstElement* /*sink*/, guintptr xid, gpointer /*user_data
     XChangeProperty(dpy, win, wmClass, stringAtom, 8, PropModeReplace,
                     reinterpret_cast<const unsigned char*>(wmClassBuf), totalLen);
 
-    // Set phone aspect ratio hint (9:19 portrait) for window managers
+    // Set phone aspect ratio hint (192:407 portrait) for window managers to match 384x814
     XSizeHints hints{};
     hints.flags = PAspect;
-    hints.min_aspect.x = 9;
-    hints.min_aspect.y = 19;
-    hints.max_aspect.x = 9;
-    hints.max_aspect.y = 19;
+    hints.min_aspect.x = 192;
+    hints.min_aspect.y = 407;
+    hints.max_aspect.x = 192;
+    hints.max_aspect.y = 407;
     XSetWMNormalHints(dpy, win, &hints);
 
     XFlush(dpy);
@@ -200,14 +200,19 @@ bool MirrorReceiver::Impl::buildPipeline() {
         g_set_application_name("TITANMIRROR");
     });
 
-    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display
+    // Ensure window manager rules (e.g. Hyprland) float and size TITANMIRROR like a modern mobile phone display with 0 bezels
     if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, size 384 814\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
         (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, rounding 26\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_size 2\" >/dev/null 2>&1");
-        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_color rgb(313244)\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:class ^(TITANMIRROR)$, border_size 0\" >/dev/null 2>&1");
+
+        (void)system("hyprctl keyword windowrule \"match:title ^(TITANMIRROR)$, float on\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:title ^(TITANMIRROR)$, size 384 814\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:title ^(TITANMIRROR)$, center on\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:title ^(TITANMIRROR)$, rounding 26\" >/dev/null 2>&1");
+        (void)system("hyprctl keyword windowrule \"match:title ^(TITANMIRROR)$, border_size 0\" >/dev/null 2>&1");
     }
 
     // Reset before building
