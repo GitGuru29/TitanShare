@@ -27,6 +27,14 @@ constexpr int      PAIRING_PIN_SECS   = 300;    // PIN refresh interval (5 min)
 constexpr int      PAIRING_PIN_DIGITS = 6;      // PIN length shown on screen
 constexpr int      MAX_RECENT_PINS    = 3;      // Rolling window of valid PINs
 
+// ─── Security (brute-force / DoS hardening) ─────────────────────────
+constexpr int      AUTH_ATTEMPTS_PER_CONNECTION = 3;     // Max PIN guesses per TCP connection
+constexpr int      AUTH_FAIL_THRESHOLD          = 5;     // Server-wide failures per IP before ban
+constexpr int      AUTH_BAN_INITIAL_SECS        = 30;    // First ban duration
+constexpr int      AUTH_BAN_MAX_SECS            = 3600;  // Cap on exponential ban backoff
+constexpr size_t   AUTH_MAX_BUFFER              = 4096;  // Max bytes buffered before auth succeeds
+constexpr uint64_t MAX_RECEIVE_FILE_BYTES       = (2ULL << 30); // Max incoming file size (2 GiB)
+
 // ─── Paths (runtime-resolved) ───────────────────────────────────────
 // Uses /var/lib/titanshare when root, ~/.local/share/titanshare otherwise
 inline std::string getDataDir() {

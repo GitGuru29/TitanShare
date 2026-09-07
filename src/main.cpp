@@ -21,6 +21,7 @@
 #include <atomic>
 #include <filesystem>
 #include <iostream>
+#include <sys/stat.h>
 
 #include <glib.h>
 
@@ -63,8 +64,15 @@ int main(int argc, char* argv[]) {
 
     // ─── Create Data Directories ──────────────────────────────
     try {
-        std::filesystem::create_directories(config::DATA_DIR);
-        std::filesystem::create_directories(config::RECEIVED_FILES_DIR);
+        // Restrict perms so other local users can't list/share our content.
+        const auto secureDir = [](const std::string& dir) {
+            std::filesystem::create_directories(std::filesystem::path(dir));
+            chmod(dir.c_str(), S_IRWXU);  // 0700
+        };
+        secureDir(config::DATA_DIR);
+        secureDir(config::RECEIVED_FILES_DIR);
+        secureDir(config::SEND_TO_ANDROID_DIR);
+        secureDir(config::IPC_DIR);
     } catch (const std::exception& e) {
         Logger::error("MAIN", "Failed to create data dirs: " + std::string(e.what()));
     }

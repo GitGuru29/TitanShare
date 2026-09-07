@@ -2,8 +2,9 @@
  * TitanShare — mDNS/Avahi Advertiser Implementation
  *
  * Publishes _titanshare._tcp on the local network with TXT records
- * containing host, port, pin, and daemon version so the Android app
- * can discover and pair automatically — no QR code needed.
+ * containing host, port, and daemon version so the Android app can
+ * discover the machine. The pairing PIN is intentionally NOT advertised:
+ * it is only shown in the GUI/logs so app users must enter it manually.
  */
 
 #include "discovery/mdns_advertiser.hpp"
@@ -107,7 +108,7 @@ void MdnsAdvertiser::runLoop() {
             m_pinDirty = false;
             avahi_entry_group_reset(m_group);
             createServices(m_client);
-            Logger::info("MDNS", "✅ mDNS TXT record updated with new PIN");
+            Logger::info("MDNS", "✅ Service re-advertised");
         }
     }
 
@@ -175,10 +176,10 @@ void MdnsAdvertiser::createServices(AvahiClient* c) {
     }
 
     if (avahi_entry_group_is_empty(m_group)) {
-        // Build TXT record: key=value pairs
+        // Build TXT record: key=value pairs. NOTE: 'pin' is deliberately
+        // omitted — advertising it broadcasts the auth secret to the whole LAN.
         AvahiStringList* txt = nullptr;
         txt = avahi_string_list_add_pair(txt, "host",  m_hostname.c_str());
-        txt = avahi_string_list_add_pair(txt, "pin",   m_pin.c_str());
         txt = avahi_string_list_add_pair(txt, "port",  std::to_string(m_port).c_str());
         txt = avahi_string_list_add_pair(txt, "ver",   config::DAEMON_VERSION.c_str());
         txt = avahi_string_list_add_pair(txt, "app",   "titanshare");
