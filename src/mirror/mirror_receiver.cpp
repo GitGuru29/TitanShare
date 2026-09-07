@@ -1,4 +1,5 @@
 #include "mirror/mirror_receiver.hpp"
+#include "utils/ssl_helper.hpp"
 #include "utils/logger.hpp"
 
 #include <gst/gst.h>
@@ -412,19 +413,33 @@ bool MirrorReceiver::start(uint16_t port) {
         Logger::info("MIRROR", "🔗 Mirror stream connected from " +
                       std::string(inet_ntoa(peer.sin_addr)));
 
+        SSL* ssl = SslHelper::instance().acceptTls(cfd);
+
         if (!m_impl->buildPipeline()) {
+            if (ssl) SslHelper::instance().closeTls(ssl);
             ::close(cfd);
             m_impl->clientFd = -1;
             m_running.store(false);
             return;
         }
 
+        auto readExact = [&](void* buf, size_t count) -> bool {
+            size_t got = 0;
+            char* ptr = static_cast<char*>(buf);
+            while (got < count) {
+                ssize_t n = ssl ? SSL_read(ssl, ptr + got, static_cast<int>(count - got))
+                                : ::recv(cfd, ptr + got, count - got, 0);
+                if (n <= 0) return false;
+                got += static_cast<size_t>(n);
+            }
+            return true;
+        };
+
         // ─── Read + push loop ─────────────────────────────────────────────
         uint8_t hdr[4];
         bool keepGoing = true;
         while (keepGoing && m_running.load()) {
-            ssize_t r = ::recv(cfd, hdr, sizeof(hdr), MSG_WAITALL);
-            if (r <= 0) break; // connection closed / error
+            if (!readExact(hdr, 4)) break; // connection closed / error
 
             uint32_t len = (static_cast<uint32_t>(hdr[0]) << 24) |
                            (static_cast<uint32_t>(hdr[1]) << 16) |
@@ -437,12 +452,7 @@ bool MirrorReceiver::start(uint16_t port) {
             }
 
             std::vector<uint8_t> payload(len);
-            size_t filled = 0;
-            while (filled < len) {
-                ssize_t n = ::recv(cfd, payload.data() + filled, len - filled, 0);
-                if (n <= 0) { keepGoing = false; break; }
-                filled += static_cast<size_t>(n);
-            }
+            if (!readExact(payload.data(), len)) { keepGoing = false; break; }
             if (!keepGoing) break;
 
             // ── Push into appsrc ─────────────────────────────────────────
@@ -463,7 +473,7 @@ bool MirrorReceiver::start(uint16_t port) {
         Logger::info("MIRROR", "📺 Mirror stream ended after " +
                       std::to_string(m_frames.load()) + " frames");
         m_impl->cleanupPipeline();
-        ::close(cfd);
+        if (ssl) SslHelper::instance().closeTls(ssl); ::close(cfd);
         m_impl->clientFd = -1;
         // Close the listening socket too so a subsequent START_MIRROR can
         // re-bind the port cleanly (see the stale-listener cleanup above).
