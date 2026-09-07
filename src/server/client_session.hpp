@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <chrono>
+#include <openssl/ssl.h>
 
 namespace titanshare {
 
@@ -24,12 +25,14 @@ class ClientSession {
 public:
     ClientSession(int fd, const std::string& remoteIp,
                   std::shared_ptr<SessionManager> sessionMgr,
-                  std::shared_ptr<CommandDispatcher> dispatcher);
+                  std::shared_ptr<CommandDispatcher> dispatcher,
+                  SSL* ssl = nullptr);
     ~ClientSession();
 
     void onData(const char* data, size_t len);
 
     int fd() const { return m_fd; }
+    SSL* ssl() const { return m_ssl; }
     const std::string& remoteIp() const { return m_remoteIp; }
 
 private:
@@ -41,8 +44,6 @@ private:
     void pushFileList();                        ///< Linux→Android: list sendable files
     void pushFile(const std::string& filename); ///< Linux→Android: stream file bytes
 
-    // O(1) buffer consumption: advance m_bufferOffset instead of erasing.
-    // Compact only when offset grows large (avoids O(n) shifts per recv).
     void consumeBuffer(size_t n);
     void compactBuffer();
 
@@ -50,6 +51,7 @@ private:
     const char* bufData() const { return m_buffer.data() + m_bufferOffset; }
 
     int m_fd;
+    SSL* m_ssl = nullptr;
     std::string m_remoteIp;
     SessionStage m_stage = SessionStage::AUTH;
     std::vector<char> m_buffer;

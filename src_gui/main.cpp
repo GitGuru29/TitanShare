@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QIcon>
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QFileSystemWatcher>
 #include <QFile>
@@ -83,22 +84,31 @@ public:
 
 // ─── IPC: read the PIN JSON written by the daemon ────────────────────────────
 static QString getIpcFilePath(const QString& filename) {
-    if (QFile::exists("/run/titanshare/" + filename)) {
-        return "/run/titanshare/" + filename;
-    }
+    // The daemon writes its pin to whichever IPC dir its privileges allow
+    // (/run/titanshare when run as root, $XDG_RUNTIME_DIR/titanshare as a
+    // normal user, ...). A previous root/systemd instance can leave a stale
+    // copy behind at a higher-priority path, so a fixed order can show a pin
+    // the live daemon no longer validates. Instead, pick the NEWEST file:
+    // the freshest writer is always the daemon currently listening.
+    QStringList candidates;
+
+    candidates << "/run/titanshare/" + filename;
     QString xdgRun = qgetenv("XDG_RUNTIME_DIR");
-    if (!xdgRun.isEmpty()) {
-        QString p = xdgRun + "/titanshare/" + filename;
-        if (QFile::exists(p)) return p;
-    }
+    if (!xdgRun.isEmpty()) candidates << xdgRun + "/titanshare/" + filename;
     QString home = qgetenv("HOME");
-    if (!home.isEmpty()) {
-        QString p = home + "/.local/share/titanshare/" + filename;
-        if (QFile::exists(p)) return p;
+    if (!home.isEmpty()) candidates << home + "/.local/share/titanshare/" + filename;
+    candidates << "/tmp/titanshare/" + filename;
+
+    QString best;
+    qint64 bestMtime = -1;
+    for (const QString& p : candidates) {
+        if (!QFile::exists(p)) continue;
+        qint64 mt = QFileInfo(p).lastModified().toMSecsSinceEpoch();
+        if (mt > bestMtime) { bestMtime = mt; best = p; }
     }
-    if (QFile::exists("/tmp/titanshare/" + filename)) {
-        return "/tmp/titanshare/" + filename;
-    }
+    if (!best.isEmpty()) return best;
+
+    // No file exists yet — return the path the running (user) daemon writes to.
     if (!xdgRun.isEmpty()) return xdgRun + "/titanshare/" + filename;
     if (!home.isEmpty()) return home + "/.local/share/titanshare/" + filename;
     return "/run/titanshare/" + filename;
@@ -186,6 +196,12 @@ int main(int argc, char *argv[]) {
     });
 
     QObject::connect(pollTimer, &QTimer::timeout, &app, [&]() {
+        // Re-arm the watcher on the freshest pin/transfer source each tick so
+        // a stale file in another location can never keep us pinned to it.
+        QString pinPath = getIpcFilePath("titanshare-pin.json");
+        if (QFile::exists(pinPath) && !watcher.files().contains(pinPath)) watcher.addPath(pinPath);
+        QString trPath = getIpcFilePath("transfer.json");
+        if (QFile::exists(trPath) && !watcher.files().contains(trPath)) watcher.addPath(trPath);
         refreshPin();
         readTransferState(appModel);
     });

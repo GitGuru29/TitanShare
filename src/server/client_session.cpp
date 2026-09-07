@@ -1,4 +1,5 @@
 #include "server/client_session.hpp"
+#include "utils/ssl_helper.hpp"
 #include "auth/session_manager.hpp"
 #include "commands/command_dispatcher.hpp"
 #include "utils/logger.hpp"
@@ -8,6 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <algorithm>
+#include <climits>
 #include <cstring>
 #include <cerrno>
 #include <chrono>
@@ -35,8 +37,10 @@ static void publishTransferState(bool active, bool isSending, const std::string&
 
 ClientSession::ClientSession(int fd, const std::string& remoteIp,
                              std::shared_ptr<SessionManager> sessionMgr,
-                             std::shared_ptr<CommandDispatcher> dispatcher)
+                             std::shared_ptr<CommandDispatcher> dispatcher,
+                             SSL* ssl)
     : m_fd(fd)
+    , m_ssl(ssl)
     , m_remoteIp(remoteIp)
     , m_sessionMgr(std::move(sessionMgr))
     , m_dispatcher(std::move(dispatcher))
@@ -46,6 +50,10 @@ ClientSession::~ClientSession() {
     if (m_fileFd >= 0) {
         close(m_fileFd);
         m_fileFd = -1;
+    }
+    if (m_ssl) {
+        SslHelper::instance().closeTls(m_ssl);
+        m_ssl = nullptr;
     }
 }
 
@@ -91,7 +99,30 @@ void ClientSession::onData(const char* data, size_t len) {
 }
 
 void ClientSession::sendResponse(const std::string& response) {
-    send(m_fd, response.c_str(), response.size(), MSG_NOSIGNAL);
+    if (!m_ssl) {
+        send(m_fd, response.c_str(), response.size(), MSG_NOSIGNAL);
+        return;
+    }
+    // Over TLS the bytes must go through SSL_write — raw send() would write
+    // plaintext into the TLS record stream and corrupt the session.
+    size_t sent = 0;
+    while (sent < response.size()) {
+        size_t chunk = std::min(response.size() - sent,
+                                static_cast<size_t>(INT_MAX));
+        int n = SSL_write(m_ssl, response.data() + sent, static_cast<int>(chunk));
+        if (n < 0) {
+            int err = SSL_get_error(m_ssl, n);
+            struct pollfd pfd{};
+            pfd.fd = m_fd;
+            if (err == SSL_ERROR_WANT_READ)      pfd.events = POLLIN;
+            else if (err == SSL_ERROR_WANT_WRITE) pfd.events = POLLOUT;
+            else break;
+            poll(&pfd, 1, 10000); // wait up to 10s for the buffer to open
+            continue;
+        }
+        if (n == 0) break;
+        sent += static_cast<size_t>(n);
+    }
 }
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -397,7 +428,7 @@ void ClientSession::pushFile(const std::string& filename) {
         
         ssize_t totalWritten = 0;
         while (totalWritten < n) {
-            ssize_t written = ::send(m_fd, buf.data() + totalWritten, static_cast<size_t>(n - totalWritten), MSG_NOSIGNAL);
+            ssize_t written = m_ssl ? SSL_write(m_ssl, buf.data() + totalWritten, static_cast<int>(n - totalWritten)) : ::send(m_fd, buf.data() + totalWritten, static_cast<size_t>(n - totalWritten), MSG_NOSIGNAL);
             if (written < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     struct pollfd pfd{};

@@ -1,4 +1,5 @@
 #include "server/tcp_server.hpp"
+#include "utils/ssl_helper.hpp"
 #include "server/client_session.hpp"
 #include "auth/session_manager.hpp"
 #include "commands/command_dispatcher.hpp"
@@ -146,8 +147,9 @@ void TcpServer::acceptConnection() {
         strcpy(hostStr, "unknown");
     }
 
+    SSL* ssl = SslHelper::instance().acceptTls(clientFd);
     m_clients[clientFd] = std::make_unique<ClientSession>(
-        clientFd, std::string(hostStr), m_sessionMgr, m_dispatcher);
+        clientFd, std::string(hostStr), m_sessionMgr, m_dispatcher, ssl);
 
     Logger::info("TCP", "🔗 Client connected: " + std::string(hostStr) +
                  " (fd=" + std::to_string(clientFd) + ")");
@@ -159,16 +161,25 @@ void TcpServer::handleClientData(int clientFd) {
 
     char buf[config::READ_BUFFER_SIZE];
     while (true) {
-        ssize_t n = recv(clientFd, buf, sizeof(buf), 0);
+        ssize_t n = 0;
+        SSL* ssl = it->second->ssl();
+        if (ssl) {
+            n = SSL_read(ssl, buf, sizeof(buf));
+        } else {
+            n = recv(clientFd, buf, sizeof(buf), 0);
+        }
+
         if (n > 0) {
             it->second->onData(buf, static_cast<size_t>(n));
         } else if (n == 0) {
-            // Client disconnected
             removeClient(clientFd);
             return;
         } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-            Logger::error("TCP", "recv() error on fd=" + std::to_string(clientFd));
+            if (!ssl && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+            if (ssl) {
+                int err = SSL_get_error(ssl, static_cast<int>(n));
+                if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) break;
+            }
             removeClient(clientFd);
             return;
         }

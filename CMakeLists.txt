@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ─── Find Dependencies ───────────────────────────────────────────────────────
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 pkg_check_modules(DBUS    REQUIRED dbus-1)
@@ -35,6 +36,7 @@ set(SOURCES
     src/utils/logger.cpp
     src/utils/network.cpp
     src/utils/process.cpp
+    src/utils/ssl_helper.cpp
     src/server/tcp_server.cpp
     src/server/client_session.cpp
     src/auth/session_manager.cpp
@@ -61,10 +63,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${AVAHI_INCLUDE_DIRS}
     ${GST_INCLUDE_DIRS}
     ${X11_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIR}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Threads::Threads
+    OpenSSL::SSL
+    OpenSSL::Crypto
     ${SYSTEMD_LIBRARIES}
     ${DBUS_LIBRARIES}
     ${AVAHI_LIBRARIES}

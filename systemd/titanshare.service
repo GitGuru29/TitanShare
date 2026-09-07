@@ -13,9 +13,10 @@ Restart=on-failure
 RestartSec=3
 NotifyAccess=main
 
-# Run as current user (not root by default)
-# Override with: systemctl edit titanshare
-# User=msfvenom
+# Run as the desktop user so the daemon and GUI share the same data/IPC dirs.
+# (An unqualified root run writes to /var/lib/titanshare + /run/titanshare,
+#  desyncing the PIN shown by the GUI from the one the daemon validates.)
+User=msfvenom
 
 # Environment for PulseAudio / PipeWire access
 Environment=DISPLAY=:0
