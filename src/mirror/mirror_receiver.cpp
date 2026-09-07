@@ -220,8 +220,10 @@ bool MirrorReceiver::Impl::buildPipeline() {
         "appsrc name=src format=time is-live=true do-timestamp=false "
         " ! queue max-size-buffers=4 leaky=downstream "
         " ! jpegdec "
+        " ! videoscale "
+        " ! video/x-raw,width=384,height=814 "
         " ! videoconvert "
-        " ! waylandsink name=vsink sync=false",
+        " ! waylandsink name=vsink sync=false force-aspect-ratio=false",
         &error);
 
     if (!pipeline) {
