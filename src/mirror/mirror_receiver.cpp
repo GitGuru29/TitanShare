@@ -235,7 +235,6 @@ bool MirrorReceiver::Impl::buildPipeline() {
             "appsrc name=src format=time is-live=true do-timestamp=false "
             " ! queue max-size-buffers=4 leaky=downstream "
             " ! jpegdec "
-" ! videobox top=-10 bottom=-10 left=-10 right=-10 fill=black "
             " ! videoconvert "
             " ! autovideosink name=vsink sync=false",
             &error);
