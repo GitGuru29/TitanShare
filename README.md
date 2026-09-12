@@ -4,15 +4,15 @@ Native C++ daemon for Arch Linux that bridges your Android phone with your Linux
 
 ## Features
 
-- 📁 **File Sharing** — Bidirectional file transfer with progress tracking
-- 🔊 **Volume Control** — Adjust system volume from your phone
-- ⚡ **Power Control** — Shutdown, reboot, sleep from Android
-- 🔒 **Lock/Unlock** — Lock screen and biometric unlock via phone fingerprint
-- 🖱️ **Remote Input** — Virtual touchpad and keyboard from Android
-- 📊 **System Monitor** — CPU, RAM, Temperature, Storage, Battery stats on phone
-- 🔔 **Notification Sync** — Forward desktop notifications to Android
-- 📱 **mDNS Discovery** — Automatic LAN discovery with rotating 6-digit PIN pairing
-- 🪞 **Screen Mirror** — Stream desktop to Android via GStreamer (length-prefixed JPEG over TCP)
+-  **File Sharing** — Bidirectional file transfer with progress tracking
+-  **Volume Control** — Adjust system volume from your phone
+-  **Power Control** — Shutdown, reboot, sleep from Android
+-  **Lock/Unlock** — Lock screen and biometric unlock via phone fingerprint
+-  **Remote Input** — Virtual touchpad and keyboard from Android
+-  **System Monitor** — CPU, RAM, Temperature, Storage, Battery stats on phone
+-  **Notification Sync** — Forward desktop notifications to Android
+-  **mDNS Discovery** — Automatic LAN discovery with rotating 6-digit PIN pairing
+-  **Screen Mirror** — Stream desktop to Android via GStreamer (length-prefixed JPEG over TCP)
 
 ## Requirements
 
